@@ -279,9 +279,17 @@
 <script src="../scripts/store.js"></script>
 <script src="../scripts/auth.js"></script>
 <script>
-  /* Nếu user đang login rồi → redirect về dashboard */
+  /* Nếu URL có ?clear → force logout (xoá session bị hỏng) */
+  const params = new URLSearchParams(location.search);
+  if (params.get('clear') === '1') {
+    window.STORE && window.STORE.set('currentUser', null);
+    history.replaceState(null, '', location.pathname);
+  }
+
+  /* Nếu đã login rồi → redirect về dashboard (hoặc trang đầu tiên có quyền) */
   if (window.AUTH && window.AUTH.isLoggedIn()) {
-    window.location.href = 'dashboard.html';
+    const allowed = window.AUTH.getAllowedMenu();
+    window.location.href = allowed.includes('dashboard.html') ? 'dashboard.html' : (allowed[0] || 'dashboard.html');
   }
 
   window.fillDemo = function(u, p) {
