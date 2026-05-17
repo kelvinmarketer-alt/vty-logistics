@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Xe & Tài xế · VTY Logistics</title>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/app.css">
+<style>
+  .page-tabs{display:flex;gap:0;background:#fff;border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:14px;width:fit-content}
+  .page-tab{padding:8px 18px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-radius:7px}
+  .page-tab.active{background:var(--navy);color:#fff}
+
+  .v-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;display:flex;flex-direction:column;gap:10px}
+  .v-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);border-color:var(--navy)}
+  .v-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media (max-width:980px){.v-grid{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:560px){.v-grid{grid-template-columns:1fr}}
+
+  .v-head{display:flex;align-items:center;gap:10px}
+  .v-plate{font-family:ui-monospace,monospace;font-size:18px;font-weight:800;color:var(--navy);background:#FEF3C7;padding:5px 10px;border-radius:6px;letter-spacing:0.5px;border:1px solid #FDE68A}
+  .v-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .v-status-dot.running{background:var(--ok);box-shadow:0 0 0 3px var(--ok-bg);animation:pulse 1.6s ease infinite}
+  .v-status-dot.idle{background:var(--muted-2)}
+  .v-status-dot.maintenance{background:var(--warn)}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 3px var(--ok-bg)}50%{box-shadow:0 0 0 6px rgba(21,128,61,0.1)}}
+
+  .v-meta{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+  .v-meta .row{display:flex;align-items:center;gap:6px}
+  .v-meta .row b{color:var(--text);font-weight:600}
+
+  .v-progress{margin-top:4px}
+  .v-progress-bar{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:4px}
+  .v-progress-fill{height:100%;background:linear-gradient(90deg,var(--ok) 0%,var(--warn) 70%,var(--danger) 90%)}
+  .v-progress .lab{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+
+  .v-driver{padding-top:10px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:8px}
+  .v-driver-ava{width:30px;height:30px;border-radius:50%;background:var(--gold);display:grid;place-items:center;color:#fff;font-weight:700;font-size:11px}
+  .v-driver-info{flex:1;line-height:1.2}
+  .v-driver-info .n1{font-size:12.5px;font-weight:600}
+  .v-driver-info .n2{font-size:11px;color:var(--muted)}
+
+  .v-foot{display:flex;gap:4px}
+  .v-foot button{flex:1;padding:6px;border:1px solid var(--line);background:#fff;border-radius:6px;font-size:11.5px;cursor:pointer;color:var(--muted)}
+  .v-foot button:hover{background:var(--bg);color:var(--navy)}
+
+  .alert-badge{font-size:10.5px;padding:2px 6px;border-radius:4px;font-weight:600}
+  .alert-badge.warn{background:var(--warn-bg);color:var(--warn)}
+  .alert-badge.danger{background:var(--danger-bg);color:var(--danger)}
+
+  /* Driver list table */
+  .star{color:var(--gold);font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar"></aside>
+
+  <header class="topbar">
+    <div class="breadcrumb"></div>
+    <div class="top-spacer"></div>
+    <div class="search-global">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input placeholder="Tìm biển số / tài xế...">
+    </div>
+    <button class="icon-btn"><span style="font-size:18px">🔔</span></button>
+  </header>
+
+  <main class="main">
+
+    <div class="page-head">
+      <div>
+        <h1>Xe & Tài xế</h1>
+        <div class="sub">9 xe · 8 tài xế · gắn 1-1 để tối ưu vận hành</div>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-ghost" onclick="window.toast('Xem lịch đăng kiểm cả tháng','info')">📅 Lịch đăng kiểm</button>
+        <button class="btn btn-primary" onclick="window.openAddVehicle()">+ Thêm xe / tài xế</button>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <section class="kpis">
+      <div class="kpi k-1"><div class="kpi-label">Tổng xe</div><div class="kpi-value">9</div><div class="kpi-trend">7 đang khai thác</div><div class="kpi-icon">🚚</div></div>
+      <div class="kpi k-2"><div class="kpi-label">Đang chạy</div><div class="kpi-value">4</div><div class="kpi-trend up">↑ Phục vụ 4 đơn</div><div class="kpi-icon">🟢</div></div>
+      <div class="kpi k-3"><div class="kpi-label">Sắp đăng kiểm</div><div class="kpi-value">1</div><div class="kpi-trend down">Xe 29C-55678 · 5 ngày</div><div class="kpi-icon">⏰</div></div>
+      <div class="kpi k-4"><div class="kpi-label">Bảo dưỡng</div><div class="kpi-value">1</div><div class="kpi-trend">29C-33344 đang sửa</div><div class="kpi-icon">🔧</div></div>
+      <div class="kpi k-5"><div class="kpi-label">Chi phí xe / 30 ngày</div><div class="kpi-value">43 tr</div><div class="kpi-trend">Xăng + bảo dưỡng</div><div class="kpi-icon">⛽</div></div>
+    </section>
+
+    <!-- Tabs -->
+    <div class="page-tabs">
+      <div class="page-tab active" onclick="switchPageTab('vehicles')">🚚 Xe nội bộ</div>
+      <div class="page-tab" onclick="switchPageTab('drivers')">🧑‍✈️ Tài xế nội bộ</div>
+      <div class="page-tab" onclick="switchPageTab('partners')">🤝 Đối tác ngoài</div>
+    </div>
+
+    <!-- Vehicles view -->
+    <div id="paneVehicles">
+      <div class="filter-bar">
+        <select id="fvStatus">
+          <option value="">Trạng thái (tất cả)</option>
+          <option value="running">🟢 Đang chạy</option>
+          <option value="idle">⚪ Rảnh</option>
+          <option value="maintenance">🔧 Bảo dưỡng</option>
+        </select>
+        <select id="fvType">
+          <option value="">Loại xe (tất cả)</option>
+          <option>Xe máy + thùng</option>
+          <option>Xe tải 1.5T</option>
+          <option>Xe tải 2.5T</option>
+          <option>Xe tải 3.5T</option>
+          <option>Xe tải 5T</option>
+        </select>
+      </div>
+      <div class="v-grid" id="vGrid"></div>
+    </div>
+
+    <!-- Partners view -->
+    <div id="panePartners" style="display:none">
+      <div style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:13px;color:var(--warn)">
+        💡 <b>Đối tác ngoài</b>: nhà xe / tài xế tự do mà VTY thuê khi quá tải, hoặc tuyến đặc thù (đông lạnh, đường thủy, cẩu...). Khác với xe nội bộ của công ty.
+      </div>
+      <div class="filter-bar">
+        <div class="search-in" style="flex:1.5">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="qPartner" placeholder="Tìm đối tác / SĐT / xe...">
+        </div>
+        <select id="fpKind">
+          <option value="">Loại (tất cả)</option>
+          <option value="company">🏢 Nhà xe (Cty)</option>
+          <option value="freelance">👤 Tự do</option>
+        </select>
+      </div>
+      <div class="table-card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Mã</th>
+                <th>Đối tác</th>
+                <th class="hide-md">Loại</th>
+                <th>Xe / SĐT</th>
+                <th class="hide-md">Chuyên môn</th>
+                <th class="num hide-sm">Chuyến/30d</th>
+                <th class="num">Chi phí/30d</th>
+                <th class="hide-sm">Đánh giá</th>
+                <th>Trạng thái</th>
+                <th class="num">Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="pTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drivers view -->
+    <div id="paneDrivers" style="display:none">
+      <div class="filter-bar">
+        <div class="search-in" style="flex:1.5">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="qDriver" placeholder="Tìm tài xế / SĐT / mã...">
+        </div>
+        <select id="fdStatus">
+          <option value="">Trạng thái</option>
+          <option value="running">🟢 Đang chạy</option>
+          <option value="off">⚫ Nghỉ / Rảnh</option>
+        </select>
+      </div>
+      <div class="table-card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Mã</th>
+                <th>Tài xế</th>
+                <th class="hide-md">Bằng lái</th>
+                <th>Xe gắn</th>
+                <th class="num">Chuyến/30d</th>
+                <th class="num">Doanh thu/30d</th>
+                <th class="hide-sm">Đánh giá</th>
+                <th>Trạng thái</th>
+                <th class="num">Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="dTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Drawer chi tiết xe -->
+<div class="drawer-bg" id="drawerBg" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="ava-lg" id="vDrawerAva" style="background:#FEF3C7;color:var(--navy);font-size:14px;font-family:ui-monospace,monospace">29A</div>
+    <div class="info">
+      <h2 id="vDrawerName">—</h2>
+      <div class="meta" id="vDrawerMeta"></div>
+    </div>
+    <button class="close-btn" onclick="closeDrawer()">✕</button>
+  </div>
+
+  <div class="drawer-stats">
+    <div class="s"><div class="lab">Chuyến/30d</div><div class="val" id="vTrips">—</div><div class="sub">Số chuyến</div></div>
+    <div class="s"><div class="lab">Chi phí/30d</div><div class="val" id="vCost">—</div><div class="sub">Xăng + BD</div></div>
+    <div class="s"><div class="lab">ODO</div><div class="val" id="vOdo">—</div><div class="sub">km</div></div>
+    <div class="s"><div class="lab">Nhiên liệu</div><div class="val" id="vFuelStatus" style="font-size:12px">—</div><div class="sub">Trạng thái</div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="info">📋 Thông tin</div>
+    <div class="tab" data-tab="fuel">⛽ Nhiên liệu</div>
+    <div class="tab" data-tab="trips">🚚 Lịch sử chuyến</div>
+    <div class="tab" data-tab="maintain">🔧 Bảo dưỡng</div>
+    <div class="tab" data-tab="docs">📄 Giấy tờ</div>
+  </div>
+
+  <div class="tab-body">
+    <div class="tab-pane active" data-pane="info">
+      <div class="section-h">Thông tin xe</div>
+      <div class="kv-grid">
+        <div class="kv"><span class="k">Biển số</span><span class="v" id="vPlate">—</span></div>
+        <div class="kv"><span class="k">Loại xe</span><span class="v" id="vType">—</span></div>
+        <div class="kv"><span class="k">Tải trọng</span><span class="v" id="vCap">—</span></div>
+        <div class="kv"><span class="k">Trạng thái</span><span class="v" id="vStatusV">—</span></div>
+        <div class="kv" style="grid-column:1/-1"><span class="k">Đang ở / Tuyến</span><span class="v" id="vRoute">—</span></div>
+      </div>
+      <div class="section-h">Tài xế gắn</div>
+      <div class="kv-grid">
+        <div class="kv"><span class="k">Tài xế chính</span><span class="v" id="vDriverName">—</span></div>
+        <div class="kv"><span class="k">Mã NV</span><span class="v" id="vDriverCode">—</span></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="window.callCurrentDriver()">📞 Gọi tài xế</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.zaloCurrentDriver()">💬 Zalo</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.changeDriver()">🔄 Đổi tài xế</button>
+      </div>
+    </div>
+
+    <div class="tab-pane" data-pane="fuel">
+      <div class="section-h">Tổng quan nhiên liệu (30 ngày)</div>
+      <div class="kv-grid">
+        <div class="kv"><span class="k">Tổng tiền xăng</span><span class="v" id="vFuelTotal" style="font-size:18px;font-weight:800;color:var(--red)">—</span></div>
+        <div class="kv"><span class="k">Tổng số lít</span><span class="v" id="vFuelLiters" style="font-size:18px;font-weight:800;color:var(--navy)">—</span></div>
+        <div class="kv"><span class="k">Mức tiêu thụ TB</span><span class="v" id="vFuelAvg" style="font-size:18px;font-weight:800;color:var(--ok)">—</span></div>
+      </div>
+
+      <div class="section-h" style="margin-top:18px">Lịch sử đổ nhiên liệu</div>
+      <table class="mini-table">
+        <thead><tr>
+          <th>Ngày giờ</th><th class="num">Số tiền</th><th class="num">Lít</th>
+          <th class="num">ODO (km)</th><th class="num">Quãng đường</th><th class="num">Tiêu thụ</th><th>Tài xế</th>
+        </tr></thead>
+        <tbody id="vFuelTbody"></tbody>
+      </table>
+      <button class="btn btn-primary" style="margin-top:14px" onclick="window.openFuelLog(document.getElementById('vPlate').textContent.split(' ')[0] ? Object.entries(window.VEHICLES).find(([k,v])=>v.plate===document.getElementById('vPlate').textContent)?.[1].id : null)">⛽ Ghi nhận đổ nhiên liệu mới</button>
+    </div>
+
+    <div class="tab-pane" data-pane="trips">
+      <div class="section-h">Lịch sử chuyến (30 ngày)</div>
+      <div class="empty"><div class="t">Hiển thị tích hợp với module Đơn hàng</div><div>Click "Xem chuyến" để mở filter Orders</div>
+        <button class="btn btn-navy" style="margin-top:14px" onclick="window.location.href='orders.html'">→ Xem trên trang Đơn hàng</button>
+      </div>
+    </div>
+
+    <div class="tab-pane" data-pane="maintain">
+      <div class="section-h">Lịch bảo dưỡng / đăng kiểm</div>
+      <div class="kv-grid">
+        <div class="kv"><span class="k">Bảo dưỡng gần nhất</span><span class="v" id="vLastService">—</span></div>
+        <div class="kv"><span class="k">Đăng kiểm tiếp theo</span><span class="v" id="vNextReg">—</span></div>
+        <div class="kv"><span class="k">Bảo hiểm hết hạn</span><span class="v" id="vInsurance">—</span></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <button class="btn btn-navy" onclick="window.openMaintenance()">+ Phiếu bảo dưỡng</button>
+        <button class="btn btn-ghost" onclick="window.openSchedInspection()">📅 Đặt đăng kiểm</button>
+      </div>
+
+      <div class="section-h" style="margin-top:18px">Lịch sử bảo dưỡng</div>
+      <table class="mini-table" id="vMaintainTable">
+        <thead><tr><th>Ngày</th><th>Loại</th><th class="num">Chi phí</th><th>Garage</th><th>Ghi chú</th></tr></thead>
+        <tbody id="vMaintainTbody"></tbody>
+      </table>
+    </div>
+
+    <div class="tab-pane" data-pane="docs">
+      <div class="section-h">Giấy tờ xe</div>
+      <div id="vDocsList"></div>
+      <div style="margin-top:14px">
+        <button class="btn btn-primary" onclick="window.openAddDoc()">+ Đính kèm file</button>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<script src="../scripts/shared.js"></script>
+<script src="../scripts/store.js"></script>
+<script src="../data/fleet.js"></script>
+<script src="../data/partners.js"></script>
+<script src="../scripts/fleet.js"></script>
+</body>
+</html>

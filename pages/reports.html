@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Báo cáo · VTY Logistics</title>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/app.css">
+<style>
+  .rpt-tabs{display:flex;gap:0;background:#fff;border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:14px;width:fit-content;flex-wrap:wrap}
+  .rpt-tab{padding:8px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-radius:7px;white-space:nowrap}
+  .rpt-tab.active{background:var(--red);color:#fff}
+
+  .chart-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+  .chart-card h3{margin:0 0 12px;font-size:13px;color:var(--navy);font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
+
+  .bar-chart{display:flex;align-items:flex-end;gap:6px;height:200px;padding-top:30px}
+  .bar-chart .bar{flex:1;border-radius:5px 5px 0 0;position:relative;min-height:6px;cursor:pointer;transition:filter 0.15s}
+  .bar-chart .bar:hover{filter:brightness(1.15)}
+  .bar-chart .bar .v{position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;color:var(--navy);white-space:nowrap}
+  .bar-chart .bar .x{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--muted);white-space:nowrap}
+
+  .pie-row{display:grid;grid-template-columns:200px 1fr;gap:20px;align-items:center}
+  @media (max-width:680px){.pie-row{grid-template-columns:1fr}}
+  .pie{position:relative;width:180px;height:180px;margin:0 auto}
+  .pie-leg{display:flex;flex-direction:column;gap:8px}
+  .pie-leg-item{display:flex;align-items:center;gap:8px;font-size:13px}
+  .pie-leg-item .sw{width:12px;height:12px;border-radius:3px}
+  .pie-leg-item .lab{flex:1}
+  .pie-leg-item .v{font-weight:700;color:var(--navy)}
+
+  .rpt-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  @media (max-width:980px){.rpt-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar"></aside>
+  <header class="topbar">
+    <div class="breadcrumb"></div>
+    <div class="top-spacer"></div>
+    <div class="search-global"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Tìm báo cáo..."></div>
+    <button class="icon-btn"><span style="font-size:18px">🔔</span></button>
+  </header>
+
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <h1>Báo cáo &amp; Phân tích</h1>
+        <div class="sub">Doanh thu · Khách hàng · Tuyến đường · Xe / Tài xế</div>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-navy" onclick="window.toggleFilterPanel()">🔍 Bộ lọc tùy chỉnh</button>
+        <button class="btn btn-ghost" onclick="window.printReport()">🖨 In</button>
+        <button class="btn btn-primary" onclick="window.exportReport()">⬇ Xuất Excel</button>
+      </div>
+    </div>
+
+    <!-- Filter panel (collapsible) -->
+    <div id="filterPanel" style="display:none;background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <h3 style="margin:0;font-size:13px;color:var(--navy);font-weight:700;text-transform:uppercase;letter-spacing:0.4px">🔍 Bộ lọc báo cáo</h3>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost btn-sm" onclick="window.savePreset()">💾 Lưu preset</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.resetFilters()">↺ Reset</button>
+      </div>
+
+      <div class="form-row">
+        <div><label>📅 Khoảng thời gian</label>
+          <select id="filDateRange" onchange="window.onDateRangeChange()">
+            <option value="today">Hôm nay</option>
+            <option value="yesterday">Hôm qua</option>
+            <option value="week">Tuần này</option>
+            <option value="month" selected>Tháng này (T5/2026)</option>
+            <option value="lastMonth">Tháng trước (T4/2026)</option>
+            <option value="quarter">Quý này</option>
+            <option value="year">Năm 2026</option>
+            <option value="custom">Tùy chỉnh ngày...</option>
+          </select></div>
+        <div id="customDateWrap" style="display:none">
+          <label>Từ ngày — Đến ngày</label>
+          <div style="display:flex;gap:6px">
+            <input id="filFrom" type="date" style="flex:1">
+            <input id="filTo" type="date" style="flex:1">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div><label>👥 Khách hàng (chọn nhiều)</label>
+          <select id="filCust" multiple size="4" style="height:auto">
+            <option value="">Tất cả KH</option>
+          </select></div>
+        <div><label>🚚 Dịch vụ (chọn nhiều)</label>
+          <select id="filSvc" multiple size="4" style="height:auto"></select></div>
+      </div>
+
+      <div class="form-row">
+        <div><label>🛣 Phương thức VC</label>
+          <select id="filMode" multiple size="3" style="height:auto"></select></div>
+        <div><label>👤 NV phụ trách</label>
+          <select id="filStaff" multiple size="3" style="height:auto">
+            <option>Trần Lan</option><option>Phạm Hùng</option>
+            <option>Hoàng Mai</option><option>Vương Luân</option>
+          </select></div>
+      </div>
+
+      <div class="form-row">
+        <div><label>🚛 Xe / Loại xe</label>
+          <select id="filVehType" multiple size="3" style="height:auto"></select></div>
+        <div><label>🚥 Trạng thái đơn</label>
+          <select id="filStatus" multiple size="3" style="height:auto">
+            <option value="confirmed">Mới</option>
+            <option value="pickup">Đang lấy</option>
+            <option value="transit">Đang giao</option>
+            <option value="delivered">Đã giao</option>
+            <option value="reconciled">Đối soát</option>
+            <option value="cancelled">Đã hủy</option>
+          </select></div>
+      </div>
+
+      <div class="form-row wide">
+        <label>📊 Chọn các chỉ số hiển thị (tick để bật)</label>
+        <div class="check-grid cols-3">
+          <label class="check-item"><input type="checkbox" id="m_revenue" checked> <span>💰 Doanh thu</span></label>
+          <label class="check-item"><input type="checkbox" id="m_orders" checked> <span>📦 Số đơn</span></label>
+          <label class="check-item"><input type="checkbox" id="m_aov" checked> <span>🧮 AOV</span></label>
+          <label class="check-item"><input type="checkbox" id="m_profit" checked> <span>📈 Lợi nhuận</span></label>
+          <label class="check-item"><input type="checkbox" id="m_cust"> <span>👥 Số KH</span></label>
+          <label class="check-item"><input type="checkbox" id="m_route"> <span>🗺 Tuyến</span></label>
+          <label class="check-item"><input type="checkbox" id="m_fuel"> <span>⛽ Chi phí xăng</span></label>
+          <label class="check-item"><input type="checkbox" id="m_partner"> <span>🤝 Đối tác ngoài</span></label>
+          <label class="check-item"><input type="checkbox" id="m_debt"> <span>📉 Công nợ</span></label>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
+        <div id="filterSummary" style="flex:1;font-size:12px;color:var(--muted)">Tất cả KH · Tất cả dịch vụ · Tháng này</div>
+        <button class="btn btn-ghost btn-sm" onclick="window.toggleFilterPanel()">Đóng</button>
+        <button class="btn btn-primary btn-sm" onclick="window.applyFilters()">🔍 Áp dụng lọc</button>
+      </div>
+    </div>
+
+    <!-- Active filter badge -->
+    <div id="activeFilterBadge" style="display:none;background:var(--navy-soft);border:1px solid var(--navy);border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12.5px;display:none">
+      <b style="color:var(--navy)">🔍 Đang lọc:</b> <span id="filterDesc"></span>
+      <button class="btn btn-sm btn-ghost" onclick="window.resetFilters()" style="float:right">✕ Bỏ lọc</button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="rpt-tabs">
+      <div class="rpt-tab active" onclick="switchTab(event,'revenue')">💰 Doanh thu</div>
+      <div class="rpt-tab" onclick="switchTab(event,'customers')">👥 Khách hàng</div>
+      <div class="rpt-tab" onclick="switchTab(event,'routes')">🗺 Tuyến đường</div>
+      <div class="rpt-tab" onclick="switchTab(event,'fleet')">🚚 Xe / Tài xế</div>
+      <div class="rpt-tab" onclick="switchTab(event,'debt')">💰 Công nợ</div>
+    </div>
+
+    <!-- Revenue -->
+    <div id="paneRevenue">
+      <section class="kpis">
+        <div class="kpi k-1"><div class="kpi-label">Doanh thu T5</div><div class="kpi-value">218 tr</div><div class="kpi-trend up">↑ +23% vs T4</div><div class="kpi-icon">💰</div></div>
+        <div class="kpi k-2"><div class="kpi-label">Số đơn T5</div><div class="kpi-value">142</div><div class="kpi-trend up">↑ +18 đơn</div><div class="kpi-icon">📦</div></div>
+        <div class="kpi k-4"><div class="kpi-label">AOV</div><div class="kpi-value">1.5 tr</div><div class="kpi-trend">/đơn</div><div class="kpi-icon">🧮</div></div>
+        <div class="kpi k-3"><div class="kpi-label">Lợi nhuận gộp</div><div class="kpi-value">132 tr</div><div class="kpi-trend up">↑ Biên 60.5%</div><div class="kpi-icon">📈</div></div>
+        <div class="kpi k-5"><div class="kpi-label">YoY</div><div class="kpi-value">+62%</div><div class="kpi-trend up">vs T5/2025</div><div class="kpi-icon">🚀</div></div>
+      </section>
+
+      <div class="chart-card">
+        <h3>📊 Doanh thu 12 tháng qua</h3>
+        <div class="bar-chart" id="chartRev"></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:14px;border-top:1px dashed var(--line);padding-top:10px">
+          <span>Tổng 12T: <b style="color:var(--navy);font-size:13px">1.84 tỷ ₫</b></span>
+          <span>TB tháng: <b style="color:var(--navy);font-size:13px">153 tr ₫</b></span>
+          <span>Cao nhất: <b style="color:var(--ok);font-size:13px">T5/2026 · 218 tr</b></span>
+          <span>Thấp nhất: <b style="color:var(--warn);font-size:13px">T2/2026 · 98 tr</b></span>
+        </div>
+      </div>
+
+      <div class="rpt-grid">
+        <div class="chart-card">
+          <h3>🥧 Cơ cấu dịch vụ</h3>
+          <div class="pie-row">
+            <div class="pie">
+              <svg viewBox="0 0 200 200" style="width:100%;height:100%">
+                <circle cx="100" cy="100" r="70" fill="none" stroke="var(--line)" stroke-width="40"/>
+                <circle cx="100" cy="100" r="70" fill="none" stroke="#C8102E" stroke-width="40"
+                        stroke-dasharray="307 440" transform="rotate(-90 100 100)"/>
+                <circle cx="100" cy="100" r="70" fill="none" stroke="#1C2D5A" stroke-width="40"
+                        stroke-dasharray="132 440" stroke-dashoffset="-307" transform="rotate(-90 100 100)"/>
+                <text x="100" y="100" text-anchor="middle" dy="0" font-size="14" fill="var(--muted)">Tổng</text>
+                <text x="100" y="118" text-anchor="middle" font-size="18" font-weight="800" fill="var(--navy)">218 tr</text>
+              </svg>
+            </div>
+            <div class="pie-leg">
+              <div class="pie-leg-item"><div class="sw" style="background:#C8102E"></div><div class="lab">Liên tỉnh đường bộ</div><div class="v">152 tr (70%)</div></div>
+              <div class="pie-leg-item"><div class="sw" style="background:#1C2D5A"></div><div class="lab">Last-mile nội thành</div><div class="v">66 tr (30%)</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3>🥇 Top 5 khách doanh thu</h3>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px"><b style="width:18px;color:var(--muted)">1</b><div style="flex:1">HN Foods <span class="tag tag-vip">VIP</span></div><b>48.2 tr</b></div>
+            <div style="height:6px;background:var(--line);border-radius:99px"><div style="width:100%;background:var(--red);height:100%;border-radius:99px"></div></div>
+            <div style="display:flex;align-items:center;gap:10px"><b style="width:18px;color:var(--muted)">2</b><div style="flex:1">An Phát <span class="tag tag-vip">VIP</span></div><b>38.6 tr</b></div>
+            <div style="height:6px;background:var(--line);border-radius:99px"><div style="width:80%;background:var(--red);height:100%;border-radius:99px"></div></div>
+            <div style="display:flex;align-items:center;gap:10px"><b style="width:18px;color:var(--muted)">3</b><div style="flex:1">Đông Anh Gỗ <span class="tag tag-vip">VIP</span></div><b>32.4 tr</b></div>
+            <div style="height:6px;background:var(--line);border-radius:99px"><div style="width:67%;background:var(--red);height:100%;border-radius:99px"></div></div>
+            <div style="display:flex;align-items:center;gap:10px"><b style="width:18px;color:var(--muted)">4</b><div style="flex:1">Phú Cường <span class="tag tag-vip">VIP</span></div><b>24.8 tr</b></div>
+            <div style="height:6px;background:var(--line);border-radius:99px"><div style="width:51%;background:var(--red);height:100%;border-radius:99px"></div></div>
+            <div style="display:flex;align-items:center;gap:10px"><b style="width:18px;color:var(--muted)">5</b><div style="flex:1">Tech 88 <span class="tag tag-vip">VIP</span></div><b>8.4 tr</b></div>
+            <div style="height:6px;background:var(--line);border-radius:99px"><div style="width:18%;background:var(--red);height:100%;border-radius:99px"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h3>📋 Doanh thu chi tiết theo NV (T5/2026)</h3>
+        <table class="mini-table">
+          <thead><tr><th>NV phụ trách</th><th class="num">Số đơn</th><th class="num">Doanh thu</th><th class="num">AOV</th><th>% Mục tiêu</th></tr></thead>
+          <tbody>
+            <tr><td><b>Vương Luân</b> (chủ)</td><td class="num">38</td><td class="num">86.4 tr</td><td class="num">2.3 tr</td><td><b style="color:var(--ok)">115%</b> 🟢</td></tr>
+            <tr><td><b>Trần Lan</b> (TP Sales)</td><td class="num">62</td><td class="num">68.2 tr</td><td class="num">1.1 tr</td><td><b style="color:var(--ok)">92%</b> 🟢</td></tr>
+            <tr><td><b>Phạm Hùng</b></td><td class="num">28</td><td class="num">38.4 tr</td><td class="num">1.4 tr</td><td><b style="color:var(--warn)">88%</b> 🟡</td></tr>
+            <tr><td><b>Hoàng Mai</b> (CSKH B2C)</td><td class="num">98</td><td class="num">25.0 tr</td><td class="num">255k</td><td><b style="color:var(--ok)">95%</b> 🟢</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Customers (placeholder cho các tab khác) -->
+    <div id="paneCustomers" style="display:none">
+      <section class="kpis">
+        <div class="kpi k-1"><div class="kpi-label">Tổng KH</div><div class="kpi-value">28</div><div class="kpi-trend up">↑ +3</div><div class="kpi-icon">👥</div></div>
+        <div class="kpi k-2"><div class="kpi-label">Tỉ lệ giữ chân</div><div class="kpi-value">86%</div><div class="kpi-trend up">↑ +2%</div><div class="kpi-icon">💚</div></div>
+        <div class="kpi k-3"><div class="kpi-label">Tỉ lệ churn</div><div class="kpi-value">14%</div><div class="kpi-trend">4 KH inactive</div><div class="kpi-icon">⚠</div></div>
+        <div class="kpi k-4"><div class="kpi-label">CLV TB</div><div class="kpi-value">68 tr</div><div class="kpi-trend">Lifetime value</div><div class="kpi-icon">💰</div></div>
+        <div class="kpi k-5"><div class="kpi-label">CAC TB</div><div class="kpi-value">1.2 tr</div><div class="kpi-trend">Chi phí thu hút</div><div class="kpi-icon">📞</div></div>
+      </section>
+
+      <div class="chart-card">
+        <h3>📊 Phân tích KH theo nguồn</h3>
+        <div class="bar-chart">
+          <div class="bar" style="height:160px;background:#C8102E"><div class="v">12 KH (43%)</div><div class="x">Giới thiệu</div></div>
+          <div class="bar" style="height:100px;background:#1C2D5A"><div class="v">8 KH (29%)</div><div class="x">Facebook</div></div>
+          <div class="bar" style="height:75px;background:#E8A33D"><div class="v">5 KH (18%)</div><div class="x">Web/SEO</div></div>
+          <div class="bar" style="height:30px;background:#7C3AED"><div class="v">2 KH (7%)</div><div class="x">Zalo</div></div>
+          <div class="bar" style="height:15px;background:#0EA5E9"><div class="v">1 KH (3%)</div><div class="x">Hội chợ</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Routes -->
+    <div id="paneRoutes" style="display:none">
+      <div class="chart-card">
+        <h3>🗺 Top 8 tuyến đường doanh thu</h3>
+        <table class="mini-table">
+          <thead><tr><th>Tuyến</th><th class="num">Số chuyến</th><th class="num">Doanh thu</th><th class="num">Lợi nhuận</th><th class="num">Margin</th></tr></thead>
+          <tbody>
+            <tr><td><b>Bắc Ninh → HCM</b></td><td class="num">12</td><td class="num">68.4 tr</td><td class="num">42.8 tr</td><td class="num" style="color:var(--ok)"><b>62.6%</b></td></tr>
+            <tr><td><b>HN ↔ Hải Phòng</b></td><td class="num">28</td><td class="num">52.2 tr</td><td class="num">38.4 tr</td><td class="num" style="color:var(--ok)"><b>73.6%</b></td></tr>
+            <tr><td><b>HN nội thành (gộp)</b></td><td class="num">98</td><td class="num">38.6 tr</td><td class="num">22.8 tr</td><td class="num" style="color:var(--warn)"><b>59.1%</b></td></tr>
+            <tr><td><b>Hải Dương → HCM</b></td><td class="num">4</td><td class="num">24.8 tr</td><td class="num">18.2 tr</td><td class="num" style="color:var(--ok)"><b>73.4%</b></td></tr>
+            <tr><td><b>HN → Đà Nẵng</b></td><td class="num">6</td><td class="num">18.4 tr</td><td class="num">11.6 tr</td><td class="num" style="color:var(--ok)"><b>63.0%</b></td></tr>
+            <tr><td><b>HN → Thanh Hóa</b></td><td class="num">8</td><td class="num">8.4 tr</td><td class="num">5.2 tr</td><td class="num" style="color:var(--warn)"><b>61.9%</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Debt report -->
+    <div id="paneDebt" style="display:none">
+
+      <section class="kpis" style="margin-bottom:14px">
+        <div class="kpi k-1"><div class="kpi-label">Tổng phải thu</div><div class="kpi-value" id="rDebtTotal">—</div><div class="kpi-trend" id="rDebtCustCount">— KH</div><div class="kpi-icon">📉</div></div>
+        <div class="kpi k-3"><div class="kpi-label">Quá hạn</div><div class="kpi-value" id="rDebtOverdue">—</div><div class="kpi-trend down" id="rDebtOverdueCount">— KH</div><div class="kpi-icon">⚠️</div></div>
+        <div class="kpi k-2"><div class="kpi-label">Tỷ lệ thu T5</div><div class="kpi-value" id="rRecovery">—</div><div class="kpi-trend up">Đã thu / phải thu</div><div class="kpi-icon">✓</div></div>
+        <div class="kpi k-4"><div class="kpi-label">DSO</div><div class="kpi-value" id="rDso">—</div><div class="kpi-trend">Ngày thu nợ TB</div><div class="kpi-icon">📅</div></div>
+        <div class="kpi k-5"><div class="kpi-label">Đã nhắc 30d</div><div class="kpi-value" id="rRemind30">—</div><div class="kpi-trend">Lượt nhắc</div><div class="kpi-icon">📞</div></div>
+      </section>
+
+      <!-- Aging chart -->
+      <div class="chart-card">
+        <h3>📊 Phân bố tuổi nợ (Aging)</h3>
+        <div id="agingChart" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px"></div>
+        <div id="agingBar" style="margin-top:16px"></div>
+      </div>
+
+      <div class="rpt-grid">
+        <!-- Top debtors -->
+        <div class="chart-card">
+          <h3>🚨 Top 5 KH nợ nhiều nhất</h3>
+          <div id="topDebtors"></div>
+        </div>
+        <!-- Theo NV phụ trách -->
+        <div class="chart-card">
+          <h3>👤 Công nợ theo NV phụ trách</h3>
+          <div id="debtByStaff"></div>
+        </div>
+      </div>
+
+      <!-- Lịch sử nhắc nợ -->
+      <div class="chart-card">
+        <h3>📞 Lịch sử nhắc nợ (30 ngày gần nhất)</h3>
+        <table class="mini-table">
+          <thead><tr><th>Ngày</th><th>KH</th><th>Kênh</th><th>NV</th><th>Phản hồi</th><th>Trạng thái sau</th></tr></thead>
+          <tbody id="remindHistory"></tbody>
+        </table>
+      </div>
+
+      <!-- Theo dõi thanh toán -->
+      <div class="chart-card">
+        <h3>💵 Phiếu thu nợ gần đây</h3>
+        <table class="mini-table">
+          <thead><tr><th>Ngày</th><th>Số phiếu</th><th>KH</th><th class="num">Số tiền</th><th>TK nhận</th><th>NV thu</th></tr></thead>
+          <tbody id="recentReceipts"></tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- Fleet report -->
+    <div id="paneFleet" style="display:none">
+
+      <!-- KPI fleet -->
+      <section class="kpis" style="margin-bottom:14px">
+        <div class="kpi k-2"><div class="kpi-label">Xe tốt nhất T5</div><div class="kpi-value" style="font-size:18px">29C-99988</div><div class="kpi-trend up">↑ Công suất 51 tr/L</div><div class="kpi-icon">🏆</div></div>
+        <div class="kpi k-1"><div class="kpi-label">Xe chạy nhiều nhất</div><div class="kpi-value" style="font-size:18px">29C-55678</div><div class="kpi-trend">48 chuyến T5</div><div class="kpi-icon">🥇</div></div>
+        <div class="kpi k-4"><div class="kpi-label">Tài xế top</div><div class="kpi-value" style="font-size:18px">Lê Văn B</div><div class="kpi-trend up">48 chuyến · đa xe</div><div class="kpi-icon">🧑‍✈️</div></div>
+        <div class="kpi k-3"><div class="kpi-label">Xe cần kiểm tra</div><div class="kpi-value" style="font-size:18px">29C-33344</div><div class="kpi-trend down">Chi phí xăng cao bất thường</div><div class="kpi-icon">⚠️</div></div>
+        <div class="kpi k-5"><div class="kpi-label">Tổng KM T5</div><div class="kpi-value">42.8k</div><div class="kpi-trend">km · 6 xe</div><div class="kpi-icon">🛣</div></div>
+      </section>
+
+      <!-- TOP XE HIỆU SUẤT -->
+      <div class="chart-card">
+        <h3>🏆 Top xe theo công suất (Doanh thu / Lít xăng)</h3>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Công thức: <b>Doanh thu ÷ Số lít xăng đổ trong tháng</b> — xe nào sinh nhiều tiền với ít nhiên liệu nhất → hiệu suất cao</div>
+        <table class="mini-table">
+          <thead><tr>
+            <th>#</th><th>Xe</th><th>Tài xế gần nhất</th>
+            <th class="num">Chuyến</th><th class="num">Lít xăng</th><th class="num">Tiền xăng</th>
+            <th class="num">Doanh thu</th><th class="num">Công suất</th>
+          </tr></thead>
+          <tbody>
+            <tr style="background:#F0FDF4">
+              <td><b style="color:var(--gold)">🥇 1</b></td>
+              <td><b>29C-99988</b> · 5T</td>
+              <td>Phạm Đức (+ Lê Văn B)</td>
+              <td class="num">22</td><td class="num">715 L</td><td class="num">18.6 tr</td>
+              <td class="num">184.2 tr</td>
+              <td class="num" style="color:var(--ok)"><b>258k ₫/L</b></td>
+            </tr>
+            <tr>
+              <td><b style="color:#9CA3AF">🥈 2</b></td>
+              <td><b>29C-55678</b> · 1.5T</td>
+              <td>Lê Văn B (+ N.V.A)</td>
+              <td class="num">48</td><td class="num">220 L</td><td class="num">5.7 tr</td>
+              <td class="num">96.4 tr</td>
+              <td class="num" style="color:var(--ok)"><b>438k ₫/L</b></td>
+            </tr>
+            <tr>
+              <td><b style="color:#CD7F32">🥉 3</b></td>
+              <td><b>29C-11122</b> · 2.5T</td>
+              <td>Bùi Văn C (+ Đinh Quang)</td>
+              <td class="num">34</td><td class="num">314 L</td><td class="num">8.2 tr</td>
+              <td class="num">48.6 tr</td>
+              <td class="num" style="color:var(--ok)"><b>155k ₫/L</b></td>
+            </tr>
+            <tr>
+              <td>4</td><td><b>29C-77788</b> · 3.5T</td><td>Phạm Đức</td>
+              <td class="num">8</td><td class="num">188 L</td><td class="num">4.9 tr</td>
+              <td class="num">28.4 tr</td>
+              <td class="num"><b>151k ₫/L</b></td>
+            </tr>
+            <tr style="background:#FEF2F2">
+              <td>5</td>
+              <td><b>29C-33344</b> · 3.5T <span class="alert-badge danger">⚠</span></td>
+              <td>Đinh Quang</td>
+              <td class="num">28</td><td class="num">313 L</td><td class="num">8.2 tr</td>
+              <td class="num">72.4 tr</td>
+              <td class="num" style="color:var(--warn)"><b>231k ₫/L</b></td>
+            </tr>
+            <tr style="opacity:0.6">
+              <td>6</td><td><b>29C-66677</b> · 1.5T</td><td>(chưa phân công)</td>
+              <td class="num">0</td><td class="num">35 L</td><td class="num">0.9 tr</td>
+              <td class="num">0 ₫</td>
+              <td class="num" style="color:var(--muted)"><b>—</b></td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:10px;padding:10px 12px;background:#FFFBEB;border:1px solid #FCD34D;border-radius:8px;font-size:12px;color:var(--warn)">
+          ⚠️ <b>Cảnh báo:</b> Xe 29C-33344 (Đinh Quang) có công suất thấp hơn 18% so với xe 29C-77788 cùng loại 3.5T → kiểm tra máy / cách lái.
+        </div>
+      </div>
+
+      <!-- TOP TÀI XẾ -->
+      <div class="chart-card">
+        <h3>🧑‍✈️ Top tài xế nhiều chuyến nhất (đa xe)</h3>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">1 tài xế có thể chạy nhiều xe khác nhau — bảng dưới gộp tất cả chuyến của tài xế đó.</div>
+        <table class="mini-table">
+          <thead><tr>
+            <th>#</th><th>Tài xế</th><th class="num">Chuyến</th>
+            <th class="num">Số xe đã lái</th><th class="num">Doanh thu sinh ra</th>
+            <th class="num">TB/chuyến</th><th>Đánh giá</th>
+          </tr></thead>
+          <tbody>
+            <tr style="background:#F0FDF4">
+              <td><b style="color:var(--gold)">🥇 1</b></td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div class="cust-ava" style="background:#15803D">LB</div>
+                  <div><b>Lê Văn B</b><div style="font-size:11px;color:var(--muted)">TX001 · 0912 666 777</div></div>
+                </div>
+              </td>
+              <td class="num"><b>48</b></td>
+              <td class="num">4 xe</td>
+              <td class="num">96.4 tr</td>
+              <td class="num">2.0 tr</td>
+              <td><span class="star">★ 4.7</span></td>
+            </tr>
+            <tr>
+              <td><b style="color:#9CA3AF">🥈 2</b></td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div class="cust-ava" style="background:#0EA5E9">BC</div>
+                  <div><b>Bùi Văn C</b><div style="font-size:11px;color:var(--muted)">TX003 · 0944 333 444</div></div>
+                </div>
+              </td>
+              <td class="num"><b>34</b></td>
+              <td class="num">3 xe</td>
+              <td class="num">48.6 tr</td>
+              <td class="num">1.4 tr</td>
+              <td><span class="star">★ 4.5</span></td>
+            </tr>
+            <tr>
+              <td><b style="color:#CD7F32">🥉 3</b></td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div class="cust-ava" style="background:#7C3AED">ĐQ</div>
+                  <div><b>Đinh Quang</b><div style="font-size:11px;color:var(--muted)">TX004 · 0967 555 666</div></div>
+                </div>
+              </td>
+              <td class="num"><b>28</b></td>
+              <td class="num">2 xe</td>
+              <td class="num">72.4 tr</td>
+              <td class="num">2.6 tr</td>
+              <td><span class="star">★ 4.7</span></td>
+            </tr>
+            <tr>
+              <td>4</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div class="cust-ava" style="background:#C8102E">PĐ</div>
+                  <div><b>Phạm Đức</b><div style="font-size:11px;color:var(--muted)">TX002 · 0936 888 999</div></div>
+                </div>
+              </td>
+              <td class="num"><b>24</b></td>
+              <td class="num">3 xe</td>
+              <td class="num">184.2 tr</td>
+              <td class="num" style="color:var(--ok)"><b>7.7 tr</b></td>
+              <td><span class="star">★ 4.9</span></td>
+            </tr>
+            <tr>
+              <td>5</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div class="cust-ava" style="background:#B45309">NA</div>
+                  <div><b>Nguyễn Văn A</b><div style="font-size:11px;color:var(--muted)">TX005 · 0901 222 333</div></div>
+                </div>
+              </td>
+              <td class="num">12</td>
+              <td class="num">2 xe</td>
+              <td class="num">8.4 tr</td>
+              <td class="num">700k</td>
+              <td><span class="star">★ 4.8</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:10px;padding:10px 12px;background:#EDE9FE;border:1px solid #C4B5FD;border-radius:8px;font-size:12px;color:#7C3AED">
+          💡 <b>Insight:</b> Phạm Đức tuy chỉ chạy 24 chuyến nhưng doanh thu 184.2 tr (TB 7.7tr/chuyến) — chuyên trị tuyến xa giá trị cao. Lê Văn B chạy nhiều chuyến ngắn ngày, ổn định.
+        </div>
+      </div>
+
+      <!-- Chi phí xăng theo xe -->
+      <div class="chart-card">
+        <h3>⛽ Chi phí xăng / xe (30 ngày)</h3>
+        <table class="mini-table">
+          <thead><tr><th>Xe</th><th class="num">Số lần đổ</th><th class="num">Tổng lít</th><th class="num">Tổng tiền</th><th class="num">TB/lít</th><th>So với cùng loại</th></tr></thead>
+          <tbody>
+            <tr><td><b>29C-99988</b> · 5T</td><td class="num">4</td><td class="num">715 L</td><td class="num">18.6 tr</td><td class="num">26.0k</td><td><span class="status-pill st-delivered">✓ Bình thường</span></td></tr>
+            <tr><td><b>29C-55678</b> · 1.5T</td><td class="num">5</td><td class="num">220 L</td><td class="num">5.7 tr</td><td class="num">25.9k</td><td><span class="status-pill st-delivered">✓ Bình thường</span></td></tr>
+            <tr><td><b>29C-11122</b> · 2.5T</td><td class="num">4</td><td class="num">314 L</td><td class="num">8.2 tr</td><td class="num">26.1k</td><td><span class="status-pill st-delivered">✓ Bình thường</span></td></tr>
+            <tr style="background:#FEF2F2"><td><b>29C-33344</b> · 3.5T</td><td class="num">3</td><td class="num">313 L</td><td class="num">8.2 tr</td><td class="num">26.2k</td><td><span class="status-pill" style="background:var(--warn-bg);color:var(--warn)">⚠ Cao hơn 8% so với cùng loại</span></td></tr>
+            <tr><td><b>29C-77788</b> · 3.5T</td><td class="num">2</td><td class="num">188 L</td><td class="num">4.9 tr</td><td class="num">26.1k</td><td><span class="status-pill st-delivered">✓ Bình thường</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<script src="../scripts/shared.js"></script>
+<script src="../scripts/store.js"></script>
+<script src="../scripts/reports.js"></script>
+</body>
+</html>

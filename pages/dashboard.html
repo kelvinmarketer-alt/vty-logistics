@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard · VTY Logistics</title>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/app.css">
+<style>
+  .dash-grid{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:16px}
+  @media (max-width:980px){.dash-grid{grid-template-columns:1fr}}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .panel-head{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .panel-head h3{margin:0;font-size:13px;color:var(--navy);font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
+  .panel-head .spc{flex:1}
+  .panel-body{padding:14px 16px}
+  .panel-body.tight{padding:0}
+
+  .mini-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #F3F4F6;cursor:pointer}
+  .mini-row:last-child{border-bottom:none}
+  .mini-row:hover{background:#FAFAFB}
+  .mini-row .av{width:30px;height:30px;border-radius:6px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:11px;flex-shrink:0}
+  .mini-row .lbl{flex:1;line-height:1.2}
+  .mini-row .lbl .n1{font-size:13px;font-weight:600;color:var(--text)}
+  .mini-row .lbl .n2{font-size:11.5px;color:var(--muted)}
+  .mini-row .v{font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums}
+  .mini-row .v.up{color:var(--ok)}
+  .mini-row .v.warn{color:var(--warn)}
+  .mini-row .pct{font-size:11px;color:var(--muted);margin-left:6px}
+
+  .chart-wrap{padding:16px;height:240px;display:flex;align-items:flex-end;gap:10px}
+  .chart-bar{flex:1;background:linear-gradient(180deg,var(--red) 0%,#E54B5E 100%);border-radius:6px 6px 0 0;position:relative;min-height:6px;transition:all 0.2s;cursor:pointer}
+  .chart-bar:hover{filter:brightness(1.1)}
+  .chart-bar .v{position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;color:var(--navy);white-space:nowrap}
+  .chart-bar .x{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--muted);white-space:nowrap}
+
+  .qa-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:14px}
+  .qa{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;text-decoration:none;color:inherit;transition:all 0.15s}
+  .qa:hover{border-color:var(--navy);background:#FAFAFB;transform:translateY(-1px)}
+  .qa .ic{width:34px;height:34px;border-radius:7px;background:var(--navy-soft);color:var(--navy);display:grid;place-items:center;font-size:16px}
+  .qa .tx{line-height:1.2}
+  .qa .tx .t1{font-size:13px;font-weight:600;color:var(--text)}
+  .qa .tx .t2{font-size:11px;color:var(--muted)}
+
+  .alert-row{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #F3F4F6;font-size:13px}
+  .alert-row:last-child{border-bottom:none}
+  .alert-row .ic{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;font-size:13px;flex-shrink:0}
+  .alert-row.warn .ic{background:var(--warn-bg);color:var(--warn)}
+  .alert-row.danger .ic{background:var(--danger-bg);color:var(--danger)}
+  .alert-row.info .ic{background:var(--info-bg);color:var(--info)}
+  .alert-row .lbl{flex:1;line-height:1.3}
+  .alert-row .lbl .n2{font-size:11.5px;color:var(--muted);margin-top:2px}
+
+  .welcome{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 22px;background:linear-gradient(135deg,var(--navy) 0%,var(--navy-dark) 100%);color:#fff;border-radius:10px;margin-bottom:16px;flex-wrap:wrap}
+  .welcome .greet{font-size:13px;opacity:0.7;letter-spacing:0.4px;text-transform:uppercase;font-weight:600}
+  .welcome h1{margin:4px 0 0;font-size:22px;font-weight:800}
+  .welcome .sub{font-size:13px;opacity:0.85;margin-top:6px}
+  .welcome .cta{display:flex;gap:8px}
+  .welcome .btn{background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.2)}
+  .welcome .btn:hover{background:rgba(255,255,255,0.2)}
+  .welcome .btn-primary{background:var(--red);border-color:var(--red)}
+  .welcome .btn-primary:hover{background:var(--red-dark)}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar"></aside>
+
+  <header class="topbar">
+    <div class="breadcrumb"></div>
+    <div class="top-spacer"></div>
+    <div class="search-global">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input placeholder="Tìm khách, đơn hàng, mã HĐ... (Ctrl + K)">
+    </div>
+    <button class="icon-btn" title="Thông báo" onclick="window.toast('Bạn có 3 thông báo mới','info')"><span style="font-size:18px">🔔</span><span class="dot"></span></button>
+    <button class="icon-btn" title="Trợ giúp" onclick="window.toast('Liên hệ IT để hỗ trợ','info')"><span style="font-size:18px">❓</span></button>
+  </header>
+
+  <main class="main">
+
+    <!-- Welcome banner -->
+    <div class="welcome">
+      <div>
+        <div class="greet">Chào buổi chiều</div>
+        <h1>Anh Vương Luân 👋</h1>
+        <div class="sub">Hôm nay <b>thứ Bảy, 16/05/2026</b> · Có <b>12 đơn mới</b>, <b>5 đơn đang giao</b>, <b>2 cảnh báo cần xử lý</b></div>
+      </div>
+      <div class="cta">
+        <button class="btn" onclick="window.location.href='orders.html'">📦 Xem tất cả đơn</button>
+        <button class="btn btn-primary" onclick="window.location.href='customers.html';window.toast('Sang trang Khách hàng','info')">+ Tạo đơn mới</button>
+      </div>
+    </div>
+
+    <!-- KPI strip -->
+    <section class="kpis">
+      <div class="kpi k-1"><div class="kpi-label">Đơn hôm nay</div><div class="kpi-value">12</div><div class="kpi-trend up">↑ +3 so với hôm qua</div><div class="kpi-icon">📦</div></div>
+      <div class="kpi k-2"><div class="kpi-label">Doanh thu tháng</div><div class="kpi-value">186 tr</div><div class="kpi-trend up">↑ 23% vs tháng 4</div><div class="kpi-icon">💰</div></div>
+      <div class="kpi k-3"><div class="kpi-label">COD chưa thu</div><div class="kpi-value">42 tr</div><div class="kpi-trend down">↓ 5 đơn quá hạn</div><div class="kpi-icon">⚠️</div></div>
+      <div class="kpi k-4"><div class="kpi-label">Xe đang chạy</div><div class="kpi-value">8 / 12</div><div class="kpi-trend">4 xe rảnh</div><div class="kpi-icon">🚚</div></div>
+      <div class="kpi k-5"><div class="kpi-label">KH mới (30 ngày)</div><div class="kpi-value">3</div><div class="kpi-trend up">2 đã có đơn</div><div class="kpi-icon">✨</div></div>
+    </section>
+
+    <!-- Main grid -->
+    <div class="dash-grid">
+
+      <!-- LEFT col -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+
+        <!-- Revenue chart -->
+        <div class="panel">
+          <div class="panel-head">
+            <h3>📊 Doanh thu 7 ngày qua</h3>
+            <div class="spc"></div>
+            <select style="border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12px">
+              <option>7 ngày</option><option>30 ngày</option><option>Quý này</option>
+            </select>
+          </div>
+          <div class="chart-wrap" id="revChart"></div>
+        </div>
+
+        <!-- Recent orders -->
+        <div class="panel">
+          <div class="panel-head">
+            <h3>📦 Đơn hàng gần đây</h3>
+            <div class="spc"></div>
+            <a href="orders.html" style="font-size:12px;color:var(--navy);font-weight:600">Xem tất cả →</a>
+          </div>
+          <div class="panel-body tight" id="recentOrders"></div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT col -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+
+        <!-- Quick actions -->
+        <div class="panel">
+          <div class="panel-head"><h3>⚡ Thao tác nhanh</h3></div>
+          <div class="qa-grid">
+            <a class="qa" href="customers.html"><div class="ic">👤</div><div class="tx"><div class="t1">Thêm khách</div><div class="t2">Tạo KH mới</div></div></a>
+            <a class="qa" onclick="window.toast('Mở form tạo đơn (demo)','info')"><div class="ic">📦</div><div class="tx"><div class="t1">Tạo đơn</div><div class="t2">Nhận hàng đi</div></div></a>
+            <a class="qa" href="fleet.html"><div class="ic">🚚</div><div class="tx"><div class="t1">Điều xe</div><div class="t2">Chỉ định tài xế</div></div></a>
+            <a class="qa" href="debt.html"><div class="ic">📞</div><div class="tx"><div class="t1">Nhắc nợ</div><div class="t2">7 KH cần gọi</div></div></a>
+            <a class="qa" href="reports.html"><div class="ic">📈</div><div class="tx"><div class="t1">Báo cáo</div><div class="t2">Xuất Excel</div></div></a>
+            <a class="qa" href="staff.html"><div class="ic">🧑‍💼</div><div class="tx"><div class="t1">Chấm công</div><div class="t2">Nhân viên</div></div></a>
+          </div>
+        </div>
+
+        <!-- Alerts -->
+        <div class="panel">
+          <div class="panel-head"><h3>⚠️ Cảnh báo cần xử lý</h3></div>
+          <div class="panel-body tight" id="alerts"></div>
+        </div>
+
+        <!-- Top customers -->
+        <div class="panel">
+          <div class="panel-head">
+            <h3>⭐ Top khách hàng tháng</h3>
+            <div class="spc"></div>
+            <a href="customers.html" style="font-size:12px;color:var(--navy);font-weight:600">Tất cả →</a>
+          </div>
+          <div class="panel-body tight" id="topCust"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="../scripts/shared.js"></script>
+<script src="../scripts/store.js"></script>
+<script src="../scripts/dashboard.js"></script>
+</body>
+</html>

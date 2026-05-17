@@ -1,0 +1,24 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Logs / debug
+*.log
+.cache/
+
+# Local secrets (nếu sau này có)
+.env
+.env.local
+config.local.js
+
+# Build (chưa dùng, để sẵn cho tương lai)
+node_modules/
+dist/
+build/
