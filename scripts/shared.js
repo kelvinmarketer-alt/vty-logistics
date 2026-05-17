@@ -115,11 +115,11 @@ window.NAV = [
   ]},
 ];
 
-/* Admin hiện tại */
+/* Admin hiện tại — default fallback nếu chưa login (auth.js sẽ override) */
 window.CURRENT_USER = {
-  name: 'Vương Luân',
-  initials: 'VL',
-  role: 'Chủ doanh nghiệp',
+  name: 'Khách',
+  initials: '?',
+  role: 'Chưa đăng nhập',
 };
 
 /* === Master data dùng chung ============================ */
@@ -229,10 +229,21 @@ window.MD = {
   },
 };
 
-/* Render sidebar */
+/* Render sidebar — lọc menu theo permissions của user đang login */
 window.renderAppShell = function(activeId, breadcrumbText) {
   const sb = document.querySelector('.sidebar');
   if (sb) {
+    /* Lấy danh sách page được phép truy cập */
+    const allowedPages = window.AUTH ? window.AUTH.getAllowedMenu() : null;
+    const filteredNav = window.NAV.map(group => ({
+      ...group,
+      items: group.items.filter(item => {
+        if (!allowedPages) return true;
+        const page = item.href.split('/').pop();
+        return allowedPages.includes(page);
+      })
+    })).filter(g => g.items.length > 0);
+
     sb.innerHTML = `
       <div class="brand">
         <div class="brand-logo">${window.brandLogo('compact', '../')}</div>
@@ -242,7 +253,7 @@ window.renderAppShell = function(activeId, breadcrumbText) {
         </div>
       </div>
       <nav class="nav">
-        ${window.NAV.map(group => `
+        ${filteredNav.map(group => `
           <div class="nav-section">${group.section}</div>
           ${group.items.map(item => `
             <a href="${item.href}" class="${item.id === activeId ? 'active' : ''}">
@@ -253,12 +264,12 @@ window.renderAppShell = function(activeId, breadcrumbText) {
         `).join('')}
       </nav>
       <div class="side-foot">
-        <div class="avatar">${window.CURRENT_USER.initials}</div>
+        <div class="avatar" style="background:${window.avatarColor(window.CURRENT_USER.name)}">${window.CURRENT_USER.initials}</div>
         <div class="user-block">
           <div class="u1">${window.CURRENT_USER.name}</div>
           <div class="u2">${window.CURRENT_USER.role}</div>
         </div>
-        <button class="icon-btn" title="Đăng xuất" onclick="alert('Đăng xuất (demo)')"
+        <button class="icon-btn" title="Đăng xuất" onclick="window.AUTH && window.AUTH.logout()"
                 style="color:rgba(255,255,255,0.6)">⏻</button>
       </div>
     `;
