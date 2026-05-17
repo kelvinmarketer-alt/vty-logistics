@@ -64,3 +64,22 @@ Web app này phục vụ 4 nghiệp vụ:
 3. Tạo `data/<name>.js` nếu cần mock data riêng
 4. Thêm link nav active trong sidebar (xem `scripts/shared.js` → `renderSidebar`)
 5. Reuse component có sẵn trong `app.css` (`.kpi`, `.tag`, `.btn`, `.drawer`...)
+
+## 🤖 BACKLOG: AI Trợ lý chat (chưa làm — đợi user yêu cầu)
+
+User đã đồng ý ý tưởng nhưng chọn "để sau". Khi user yêu cầu lại:
+
+**Phương án A (đơn giản, ưu tiên)**:
+- Floating chat bubble góc dưới phải mọi page (chat-widget.js, gọi từ shared.js)
+- Click → mở panel 380×600
+- Dùng Gemini 2.0 Flash API key đã setup ở Settings → Tích hợp → AI Form Filler
+- System prompt: VTY app, 10 modules, user context (name/role/page hiện tại)
+- Quick prompts gợi ý theo trang đang xem
+- Lưu conversation history per user vào STORE
+- ~1-2 giờ build
+
+**Phương án B (nếu scale)**: Cloudflare Workers proxy, giấu API key, audit log
+
+**Chi phí**: Gemini Flash FREE tier 1500 RPD đủ cho VTY (30 NV). Nếu vượt: ~18đ/câu.
+
+**Lý do user hoãn**: ưu tiên các tính năng khác trước.
