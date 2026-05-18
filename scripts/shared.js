@@ -3,6 +3,48 @@
    Dùng chung cho mọi trang.
    ========================================================= */
 
+/* ============ PWA setup =============
+   Tự register service worker + inject manifest vào mọi page
+   ===================================================== */
+(function setupPWA() {
+  /* Inject manifest link nếu chưa có */
+  if (!document.querySelector('link[rel="manifest"]')) {
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    /* Đường dẫn manifest dựa trên vị trí page */
+    link.href = location.pathname.includes('/pages/') ? '../manifest.json' : '/manifest.json';
+    document.head.appendChild(link);
+  }
+  /* Theme color cho status bar mobile */
+  if (!document.querySelector('meta[name="theme-color"]')) {
+    const meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    meta.content = '#1C2D5A';
+    document.head.appendChild(meta);
+  }
+  /* Apple mobile web app */
+  if (!document.querySelector('meta[name="apple-mobile-web-app-capable"]')) {
+    const m1 = document.createElement('meta');
+    m1.name = 'apple-mobile-web-app-capable';
+    m1.content = 'yes';
+    document.head.appendChild(m1);
+    const m2 = document.createElement('meta');
+    m2.name = 'apple-mobile-web-app-status-bar-style';
+    m2.content = 'black-translucent';
+    document.head.appendChild(m2);
+    const m3 = document.createElement('meta');
+    m3.name = 'apple-mobile-web-app-title';
+    m3.content = 'VTY Logistics';
+    document.head.appendChild(m3);
+  }
+  /* Register service worker (chỉ trên HTTPS / localhost) */
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.warn('[PWA] SW register failed:', err));
+    });
+  }
+})();
+
 /* ============ Brand logo =============
    - Có 2 cấp: compact (sidebar) và full (landing).
    - Tự ưu tiên file `assets/logo.png` nếu user drop vào;
@@ -280,6 +322,41 @@ window.renderAppShell = function(activeId, breadcrumbText) {
   if (bc && breadcrumbText) {
     bc.innerHTML = `Trang chủ <span>›</span> <b>${breadcrumbText}</b>`;
   }
+
+  /* === Hamburger menu cho mobile === */
+  const tb = document.querySelector('.topbar');
+  if (tb && !tb.querySelector('.hamburger')) {
+    const hb = document.createElement('button');
+    hb.className = 'hamburger';
+    hb.title = 'Mở menu';
+    hb.innerHTML = '☰';
+    hb.onclick = () => window.toggleSidebar();
+    tb.insertBefore(hb, tb.firstChild);
+  }
+  /* Overlay để đóng sidebar khi click ngoài */
+  if (!document.querySelector('.sidebar-overlay')) {
+    const ov = document.createElement('div');
+    ov.className = 'sidebar-overlay';
+    ov.onclick = () => window.toggleSidebar(false);
+    document.body.appendChild(ov);
+  }
+  /* Auto đóng sidebar khi click vào link nav */
+  document.querySelectorAll('.sidebar .nav a').forEach(a => {
+    a.addEventListener('click', () => {
+      if (window.innerWidth <= 980) window.toggleSidebar(false);
+    });
+  });
+};
+
+window.toggleSidebar = function(force) {
+  const sb = document.querySelector('.sidebar');
+  const ov = document.querySelector('.sidebar-overlay');
+  if (!sb) return;
+  const willOpen = typeof force === 'boolean' ? force : !sb.classList.contains('open');
+  sb.classList.toggle('open', willOpen);
+  ov.classList.toggle('open', willOpen);
+  /* Khóa scroll body khi sidebar mở */
+  document.body.style.overflow = willOpen ? 'hidden' : '';
 };
 
 /* ============ Drawer helpers ============ */
