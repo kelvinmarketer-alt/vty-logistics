@@ -3,12 +3,12 @@
    Sửa SUPABASE_URL + SUPABASE_ANON_KEY khi bạn có project
    ========================================================= */
 window.SUPABASE_CONFIG = {
-  /* TODO: User dán 2 giá trị này sau khi tạo Supabase project */
-  url:     'YOUR_SUPABASE_URL',      // VD: https://abcxyz123.supabase.co
-  anonKey: 'YOUR_SUPABASE_ANON_KEY', // VD: eyJhbGc...
+  /* Project VTY Logistics (kelvinmarketer-alt) */
+  url:     'https://dbfffwtnxhytcoczhxhf.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiZmZmd3RueGh5dGNvY3poeGhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwOTg1MDAsImV4cCI6MjA5NDY3NDUwMH0.2k5jNZZCV6YPyOBfmaZSUwqGe6ihuddS3zhHzDgZ9l0',
 
   /* Chế độ vận hành */
-  mode:    'localStorage',            // 'localStorage' | 'supabase'
+  mode:    'supabase',                // 'localStorage' | 'supabase'
 
   /* Mapping STORE keys → Supabase tables */
   tableMap: {
