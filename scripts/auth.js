@@ -54,6 +54,7 @@
     'staff.html':      'Nhân viên',
     'reports.html':    'Báo cáo',
     'settings.html':   null,  /* Settings ai cũng vào được */
+    'docs.html':       null,  /* Tài liệu — ai cũng đọc được */
     'login.html':      null,
   };
 

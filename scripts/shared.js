@@ -112,6 +112,7 @@ window.NAV = [
     { id: 'staff',      label: 'Nhân viên',   icon: '🧑‍💼', href: 'staff.html' },
     { id: 'reports',    label: 'Báo cáo',     icon: '📈', href: 'reports.html' },
     { id: 'settings',   label: 'Cài đặt',     icon: '⚙️', href: 'settings.html' },
+    { id: 'docs',       label: 'Hướng dẫn',   icon: '📖', href: 'docs.html' },
   ]},
 ];
 
