@@ -276,6 +276,9 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../scripts/supabase-config.js"></script>
+<script src="../scripts/supabase-client.js"></script>
 <script src="../scripts/store.js"></script>
 <script src="../scripts/auth.js"></script>
 <script>
@@ -298,7 +301,7 @@
     document.getElementById('btnLogin').focus();
   };
 
-  window.submitLogin = function(e) {
+  window.submitLogin = async function(e) {
     e.preventDefault();
     const u = document.getElementById('username').value.trim();
     const p = document.getElementById('password').value;
@@ -310,18 +313,24 @@
     btn.innerHTML = '⏳ Đang xác thực...';
     err.classList.remove('show');
 
-    setTimeout(() => {
-      const result = window.AUTH.login(u, p, remember);
-      if (result.success) {
+    try {
+      const result = await window.AUTH.login(u, p, remember);
+      if (result && result.success) {
         btn.innerHTML = '✓ Thành công · đang vào hệ thống...';
-        setTimeout(() => { window.location.href = 'dashboard.html'; }, 600);
+        setTimeout(() => { window.location.href = 'dashboard.html'; }, 400);
       } else {
-        err.textContent = '⚠️ ' + result.error;
+        err.textContent = '⚠️ ' + (result?.error || 'Đăng nhập thất bại');
         err.classList.add('show');
         btn.disabled = false;
         btn.innerHTML = '🔐 Đăng nhập';
       }
-    }, 600);
+    } catch (ex) {
+      console.error('[LOGIN]', ex);
+      err.textContent = '⚠️ Lỗi: ' + (ex.message || ex);
+      err.classList.add('show');
+      btn.disabled = false;
+      btn.innerHTML = '🔐 Đăng nhập';
+    }
   };
 </script>
 </body>

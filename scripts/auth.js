@@ -72,42 +72,52 @@
     /* === Login === */
     async login(email, password, remember) {
       /* Supabase Auth */
+      let supabaseError = null;
       if (isSupabaseAuthMode()) {
         try {
           const { data, error } = await window.SB_AUTH.signIn(email, password);
-          if (error) return { success: false, error: error.message || 'Login thất bại' };
-          const staff = await getStaffByUserId(data.user.id);
-          if (!staff) {
-            await window.SB_AUTH.signOut();
-            return { success: false, error: 'Tài khoản chưa được link với NV nội bộ. Liên hệ admin.' };
+          if (!error && data?.user) {
+            const staff = await getStaffByUserId(data.user.id);
+            if (!staff) {
+              await window.SB_AUTH.signOut();
+              return { success: false, error: 'Tài khoản chưa được link với NV nội bộ. Liên hệ admin.' };
+            }
+            const session = {
+              staffId: staff.staffId,
+              email,
+              name: staff.name,
+              role: staff.role,
+              dept: staff.dept,
+              permissions: staff.permissions,
+              avatar: staff.avatar,
+              avatarColor: staff.avatarColor,
+              loginAt: new Date().toISOString(),
+              expiresAt: remember
+                ? new Date(Date.now() + 7*24*60*60*1000).toISOString()
+                : new Date(Date.now() + 4*60*60*1000).toISOString(),
+              supabaseUserId: data.user.id,
+            };
+            window.STORE.set('currentUser', session);
+            this.logActivity(staff.staffId, 'login', 'Đăng nhập (Supabase)');
+            return { success: true, user: session };
           }
-          const session = {
-            staffId: staff.staffId,
-            email,
-            name: staff.name,
-            role: staff.role,
-            dept: staff.dept,
-            permissions: staff.permissions,
-            avatar: staff.avatar,
-            avatarColor: staff.avatarColor,
-            loginAt: new Date().toISOString(),
-            expiresAt: remember
-              ? new Date(Date.now() + 7*24*60*60*1000).toISOString()
-              : new Date(Date.now() + 4*60*60*1000).toISOString(),
-            supabaseUserId: data.user.id,
-          };
-          window.STORE.set('currentUser', session);
-          this.logActivity(staff.staffId, 'login', 'Đăng nhập (Supabase)');
-          return { success: true, user: session };
+          supabaseError = error;
+          console.warn('[AUTH] Supabase signIn fail:', error?.message);
         } catch (e) {
-          console.error('[AUTH login]', e);
-          /* Fallback mock nếu Supabase lỗi */
+          console.error('[AUTH login exception]', e);
+          supabaseError = e;
         }
       }
 
-      /* Fallback mock */
+      /* Fallback mock — cho phép demo accounts hoạt động khi Supabase chưa có user */
       const u = MOCK_USERS.find(x => x.email.toLowerCase() === email.toLowerCase() && x.password === password);
-      if (!u) return { success: false, error: 'Email hoặc mật khẩu không đúng.' };
+      if (!u) {
+        const msg = supabaseError?.message || '';
+        if (msg && !msg.toLowerCase().includes('invalid')) {
+          return { success: false, error: msg };
+        }
+        return { success: false, error: 'Email hoặc mật khẩu không đúng.' };
+      }
       if (u.status === 'off') return { success: false, error: 'Tài khoản đã bị khóa.' };
       const session = {
         staffId: u.staffId, email: u.email, name: u.name, role: u.role, dept: u.dept,
@@ -118,7 +128,7 @@
           : new Date(Date.now() + 4*60*60*1000).toISOString(),
       };
       window.STORE.set('currentUser', session);
-      this.logActivity(u.staffId, 'login', 'Đăng nhập (mock)');
+      this.logActivity(u.staffId, 'login', 'Đăng nhập (mock fallback)');
       return { success: true, user: session };
     },
 
