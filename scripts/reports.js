@@ -157,21 +157,19 @@
     }
   }
 
-  /* 12-month revenue bar chart */
+  /* 12-month revenue bar chart — tính THẬT từ đơn đã giao */
   function renderChart() {
-    const months = [
-      { m:'T6/25', v:124_000_000 }, { m:'T7/25', v:138_000_000 }, { m:'T8/25', v:142_000_000 },
-      { m:'T9/25', v:156_000_000 }, { m:'T10/25', v:168_000_000 }, { m:'T11/25', v:172_000_000 },
-      { m:'T12/25', v:184_000_000 }, { m:'T1/26', v:142_000_000 }, { m:'T2/26', v:98_000_000 },
-      { m:'T3/26', v:158_000_000 }, { m:'T4/26', v:178_000_000 }, { m:'T5/26', v:218_000_000 },
-    ];
-    const max = Math.max(...months.map(x => x.v));
-    document.getElementById('chartRev').innerHTML = months.map((d, i) => {
+    const el = document.getElementById('chartRev');
+    if (!el) return;
+    const orders = window.STORE.get('orders', window.ORDERS || []);
+    const months = window.revenueLastMonths(orders, 12);
+    const max = Math.max(1, ...months.map(x => x.v));
+    el.innerHTML = months.map((d, i) => {
       const h = Math.max(8, (d.v/max) * 160);
       const cur = i === months.length - 1;
       return `<div class="bar" style="height:${h}px;background:${cur ? 'var(--red)' : 'var(--navy)'}" title="${window.fmtVND(d.v)}">
         <div class="v">${window.fmtShort(d.v)}</div>
-        <div class="x">${d.m}</div>
+        <div class="x">${d.label}</div>
       </div>`;
     }).join('');
   }

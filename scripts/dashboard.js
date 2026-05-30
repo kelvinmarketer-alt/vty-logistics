@@ -126,32 +126,25 @@
     }
   }
 
-  /* Revenue chart — vẫn hiện 7 ngày mock vì cần data series theo ngày */
+  /* Revenue chart — 7 ngày gần nhất, tính THẬT từ đơn đã giao */
   function renderChart() {
-    const REV_7D = [
-      { d: '11/5', v: 22_100_000 },
-      { d: '12/5', v: 15_800_000 },
-      { d: '13/5', v: 28_300_000 },
-      { d: '14/5', v: 24_600_000 },
-      { d: '15/5', v: 31_500_000 },
-      { d: '16/5', v: 19_200_000 },
-      { d: 'Hôm nay', v: calcKPIs().todayRevenue || 12_000_000 },
-    ];
     const chart = document.getElementById('revChart');
     if (!chart) return;
-    const max = Math.max(...REV_7D.map(x => x.v));
+    const orders = window.STORE.get('orders', window.ORDERS || []);
+    const REV_7D = window.revenueLastDays(orders, 7);
+    const max = Math.max(1, ...REV_7D.map(x => x.v));
     chart.innerHTML = REV_7D.map((d, i) => {
       const h = Math.max(8, (d.v / max) * 180);
       const isToday = i === REV_7D.length - 1;
       return `<div class="chart-bar" style="height:${h}px;${isToday?'background:linear-gradient(180deg,#E8A33D 0%,#B45309 100%)':''}" title="${window.fmtVND(d.v)}">
         <div class="v">${window.fmtShort(d.v)}</div>
-        <div class="x">${d.d}</div>
+        <div class="x">${d.label}</div>
       </div>`;
     }).join('');
   }
 
   /* Subscribe để re-render khi data thay đổi từ tab khác */
-  ['orders','customers','vehicles'].forEach(k => window.STORE.subscribe(k, render));
+  ['orders','customers','vehicles'].forEach(k => window.STORE.subscribe(k, () => { render(); renderChart(); }));
 
   /* Init */
   window.renderAppShell('dashboard', 'Dashboard');

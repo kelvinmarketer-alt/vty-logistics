@@ -291,11 +291,15 @@
     }
     document.getElementById('timelineList').innerHTML = html;
 
-    /* Wire action buttons */
+    /* Wire action buttons (theo thứ tự nút trong orders.html) */
     const drawer = document.getElementById('drawer');
     const actBtns = drawer.querySelectorAll('.tab-pane[data-pane="actions"] button');
     if (actBtns[0]) actBtns[0].onclick = () => { advanceStatus(code); window.closeDrawer(); };
-    if (actBtns[4]) actBtns[4].onclick = () => {
+    if (actBtns[1]) actBtns[1].onclick = () => window.printDeliveryNote(o);
+    if (actBtns[2]) actBtns[2].onclick = () => window.createInvoiceFromOrder(o);
+    if (actBtns[3]) actBtns[3].onclick = () => window.smsCustomer(o);
+    if (actBtns[4]) actBtns[4].onclick = () => window.copyTrackingLink(o);
+    if (actBtns[5]) actBtns[5].onclick = () => {
       if (confirm('Hủy đơn này?')) { cancelOrder(code); window.closeDrawer(); }
     };
 
@@ -766,6 +770,135 @@
     window.closeModal();
     const profitMsg = external ? ` · LN ${window.fmtShort(freight - partnerCost)}₫` : '';
     window.toast('✓ Đã tạo ' + newOrder.code + profitMsg, 'success');
+  };
+
+  /* === Hành động trên đơn (drawer) === */
+
+  function trackUrl(o) {
+    return location.origin + location.pathname.replace(/[^/]+$/, '') + 'track.html?code=' + encodeURIComponent(o.code);
+  }
+
+  /* Sao chép link tracking công khai */
+  window.copyTrackingLink = function(o) {
+    const url = trackUrl(o);
+    const done = () => window.toast('🔗 Đã sao chép link tracking: ' + url, 'success');
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(() => { window.prompt('Sao chép link:', url); });
+    else window.prompt('Sao chép link:', url);
+  };
+
+  /* Mở app nhắn tin SMS với nội dung soạn sẵn */
+  window.smsCustomer = function(o) {
+    const cust = window.STORE.get('customers', []).find(c => c.id === o.cust);
+    const phone = (o.receiverPhone || cust?.phone || '').replace(/[^\d+]/g, '');
+    if (!phone) { window.toast('Đơn không có SĐT người nhận', 'warn'); return; }
+    const st = (STATUS[o.status] && STATUS[o.status].label) || o.status;
+    const msg = `VTY Logistics: Don ${o.code} - ${st}. Tra cuu: ${trackUrl(o)}`;
+    window.location.href = `sms:${phone}?&body=${encodeURIComponent(msg)}`;
+    window.toast('📱 Mở tin nhắn cho ' + (cust?.name || phone), 'info');
+  };
+
+  /* Tạo hóa đơn VAT nháp từ đơn (đóng gap Đơn → Hóa đơn).
+     Chỉ dùng các cột HĐ có sẵn (no,date,cust,tax,net,vat,status,desc) để Supabase không từ chối. */
+  window.createInvoiceFromOrder = function(o) {
+    if (!o || !o.freight) { window.toast('Đơn chưa có cước phí để xuất HĐ', 'warn'); return; }
+    const invoices = window.STORE.get('invoices', []);
+    const dup = invoices.find(i => (i.desc || '').includes(o.code));
+    if (dup) { window.toast('Đơn ' + o.code + ' đã có hóa đơn ' + (dup.no || '(nháp)'), 'warn'); return; }
+    const cust = window.STORE.get('customers', []).find(c => c.id === o.cust);
+    const net = Math.round(o.freight / 1.1);
+    const vat = o.freight - net;
+    const route = `${(o.pickup || '').split(',')[0]} → ${(o.drop || '').split(',')[0]}`;
+    window.STORE.add('invoices', {
+      no: '(nháp)',
+      date: (o.date || '').split(' ')[0] || new Date().toLocaleDateString('vi-VN'),
+      cust: cust?.name || o.custName,
+      tax: cust?.tax || '',
+      desc: `Cước VC đơn ${o.code} · ${route}`,
+      net, vat, status: 'draft',
+    });
+    window.toast('🧾 Đã tạo HĐ nháp từ ' + o.code + ' · vào trang Hóa đơn để phát hành', 'success');
+  };
+
+  /* In phiếu giao hàng từ đơn */
+  window.printDeliveryNote = function(o) {
+    if (!o) return;
+    const company = window.STORE.get('companyInfo', null) || {
+      name: 'Công ty TNHH Vạn Thiên Ý', shortName: 'VTY Logistics',
+      address: 'Số 88 Trần Duy Hưng, Cầu Giấy, Hà Nội',
+      tax: '0109876543', hotline: '0903 111 222', email: 'contact@vtylogistics.vn',
+    };
+    const items = Array.isArray(o.items) && o.items.length ? o.items
+      : [{ desc: o.goods || 'Hàng hóa', unit: o.unit || 'Kiện', qty: o.qty || 1, weight: o.weight || 0, amount: o.freight || 0 }];
+    const itemRows = items.map((it, i) => `<tr>
+        <td style="text-align:center">${i + 1}</td>
+        <td>${it.desc || '—'}</td>
+        <td style="text-align:center">${(it.unit || '').toLowerCase()}</td>
+        <td style="text-align:center">${it.qty || 0}</td>
+        <td style="text-align:center">${it.weight || 0} kg</td>
+        <td class="num">${window.fmt(it.amount || 0)}</td>
+      </tr>`).join('');
+    const st = (STATUS[o.status] && STATUS[o.status].label) || o.status;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Phiếu giao hàng ${o.code}</title>
+      <style>
+        body{font-family:'Times New Roman',serif;max-width:820px;margin:0 auto;padding:28px;color:#000;font-size:13px;line-height:1.5}
+        .hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #C8102E;padding-bottom:10px}
+        .hd .co{font-weight:700;color:#1C2D5A;font-size:15px}
+        .hd .co small{display:block;font-weight:400;color:#555;font-size:11.5px;margin-top:2px}
+        h1{text-align:center;color:#C8102E;font-size:22px;margin:16px 0 2px;letter-spacing:1px}
+        .sub{text-align:center;color:#555;font-size:12px;margin-bottom:14px}
+        .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+        .box{border:1px solid #ccc;border-radius:6px;padding:10px}
+        .box h3{margin:0 0 6px;font-size:13px;color:#1C2D5A;text-transform:uppercase}
+        .row{display:flex;gap:8px;margin:2px 0}.row .lab{width:90px;color:#555}
+        table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12.5px}
+        th{background:#1C2D5A;color:#fff;padding:7px;border:1px solid #1C2D5A;font-size:11.5px;text-transform:uppercase}
+        td{padding:7px;border:1px solid #ccc}.num{text-align:right;font-variant-numeric:tabular-nums}
+        .totals{display:flex;justify-content:flex-end;gap:24px;margin-top:6px;font-size:13px}
+        .totals b{color:#C8102E}
+        .sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-top:48px;text-align:center;font-size:12.5px}
+        .sign .role{font-weight:700;text-transform:uppercase}.sign .ghi{font-style:italic;font-size:11px;color:#666;margin-top:3px}
+        @media print{body{padding:14px}.noprint{display:none}}
+      </style></head><body>
+      <div class="hd">
+        <div class="co">${company.name}<small>${company.address} · ĐT: ${company.hotline} · MST: ${company.tax}</small></div>
+        <div style="text-align:right;font-size:11.5px;color:#555">Ngày in: ${new Date().toLocaleString('vi-VN')}</div>
+      </div>
+      <h1>PHIẾU GIAO HÀNG</h1>
+      <div class="sub">Số đơn: <b>${o.code}</b> · Ngày tạo: ${o.date || ''} · Trạng thái: ${st}</div>
+      <div class="grid">
+        <div class="box"><h3>Bên gửi</h3>
+          <div class="row"><div class="lab">Tên:</div><div>${o.senderName || o.custName || '—'}</div></div>
+          <div class="row"><div class="lab">SĐT:</div><div>${o.senderPhone || '—'}</div></div>
+          <div class="row"><div class="lab">Lấy tại:</div><div>${o.pickup || '—'}</div></div>
+        </div>
+        <div class="box"><h3>Bên nhận</h3>
+          <div class="row"><div class="lab">Tên:</div><div>${o.receiverName || '—'}</div></div>
+          <div class="row"><div class="lab">SĐT:</div><div>${o.receiverPhone || '—'}</div></div>
+          <div class="row"><div class="lab">Giao tới:</div><div>${o.drop || '—'}</div></div>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th style="width:36px">STT</th><th>Tên hàng</th><th style="width:60px">ĐVT</th><th style="width:50px">SL</th><th style="width:70px">Khối lượng</th><th style="width:110px">Thành tiền</th></tr></thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+      <div class="totals">
+        <div>Cước vận chuyển: <b>${window.fmtVND(o.freight || 0)}</b></div>
+        <div>Thu hộ (COD): <b>${window.fmtVND(o.cod || 0)}</b></div>
+        <div>Hình thức TT: <b>${o.payBy || '—'}</b></div>
+      </div>
+      <div class="sign">
+        <div><div class="role">Người gửi</div><div class="ghi">(Ký, ghi rõ họ tên)</div></div>
+        <div><div class="role">Tài xế giao</div><div class="ghi">${o.driverName || ''}</div></div>
+        <div><div class="role">Người nhận</div><div class="ghi">(Ký, ghi rõ họ tên)</div></div>
+      </div>
+      <div class="noprint" style="margin-top:26px;display:flex;gap:10px;justify-content:center;border-top:1px solid #ccc;padding-top:16px">
+        <button onclick="window.print()" style="background:#C8102E;color:#fff;border:none;padding:9px 22px;border-radius:8px;font-weight:700;cursor:pointer">🖨 In phiếu</button>
+        <button onclick="window.close()" style="background:#fff;color:#1C2D5A;border:1px solid #1C2D5A;padding:9px 22px;border-radius:8px;cursor:pointer">Đóng</button>
+      </div>
+    </body></html>`;
+    const w = window.open('', '_blank', 'width=900,height=800');
+    w.document.write(html);
+    w.document.close();
   };
 
   /* === Auto-open create modal if ?createFor=KH00X === */

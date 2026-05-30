@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Tra cứu đơn hàng · VTY Logistics</title>
+  <link rel="stylesheet" href="../styles/tokens.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Segoe UI', -apple-system, Roboto, sans-serif; background: #F4F5F7; color: #1C2D5A; }
+    .top { background: var(--navy, #1C2D5A); color: #fff; padding: 16px 20px; }
+    .top .brand { font-weight: 800; font-size: 18px; letter-spacing: .5px; }
+    .top .brand span { color: var(--gold, #E8A33D); }
+    .wrap { max-width: 560px; margin: 0 auto; padding: 20px 16px 60px; }
+    .search { display: flex; gap: 8px; margin: 18px 0; }
+    .search input { flex: 1; padding: 11px 12px; border: 1px solid #D0D3DC; border-radius: 10px; font-size: 15px; }
+    .search button { background: var(--red, #C8102E); color: #fff; border: 0; border-radius: 10px; padding: 0 18px; font-weight: 700; font-size: 15px; cursor: pointer; }
+    .card { background: #fff; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06); padding: 18px; margin-top: 14px; }
+    .code { font-family: ui-monospace, monospace; font-weight: 800; font-size: 20px; }
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 13px; margin-top: 6px; }
+    .route { display: flex; align-items: center; gap: 10px; margin: 16px 0; font-size: 15px; }
+    .route .city { font-weight: 700; }
+    .route .arr { color: var(--red, #C8102E); font-size: 18px; }
+    .meta { color: #5A627A; font-size: 13px; margin-top: 4px; }
+    .tl { margin-top: 18px; border-top: 1px dashed #E0E2E9; padding-top: 14px; }
+    .tl-item { display: flex; gap: 12px; padding: 7px 0; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 3px; flex: 0 0 auto; border: 2px solid #D0D3DC; background: #fff; }
+    .tl-item.done .dot { background: var(--ok, #16A34A); border-color: var(--ok, #16A34A); }
+    .tl-item.current .dot { background: var(--gold, #E8A33D); border-color: var(--gold, #E8A33D); box-shadow: 0 0 0 4px rgba(232,163,61,.25); }
+    .tl-item.pending .t1 { color: #9AA0B0; }
+    .t1 { font-weight: 600; }
+    .t2 { font-size: 12px; color: #8A90A0; }
+    .msg { text-align: center; color: #5A627A; padding: 30px 10px; }
+    .foot { text-align: center; color: #9AA0B0; font-size: 12px; margin-top: 26px; }
+  </style>
+</head>
+<body>
+  <div class="top"><div class="brand">VTY <span>Logistics</span> · Tra cứu đơn</div></div>
+  <div class="wrap">
+    <div class="search">
+      <input id="q" placeholder="Nhập mã đơn (VD: VTY-526045)" autocomplete="off">
+      <button id="btn" type="button">Tra cứu</button>
+    </div>
+    <div id="result"><div class="msg">Nhập mã đơn để theo dõi hành trình.</div></div>
+    <div class="foot">Hotline: 0903 111 222 · vtylogistics.com</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../scripts/supabase-config.js"></script>
+  <script src="../scripts/supabase-client.js"></script>
+  <script src="../data/orders.js"></script>
+  <script>
+  (function () {
+    var STATUS = {
+      confirmed:  { label: '📝 Đã tiếp nhận',   bg: '#EEF1F8', fg: '#1C2D5A' },
+      pickup:     { label: '📦 Đang lấy hàng',  bg: '#FEF3C7', fg: '#B45309' },
+      transit:    { label: '🚚 Đang vận chuyển', bg: '#DBEAFE', fg: '#1E40AF' },
+      delivered:  { label: '✓ Đã giao',         bg: '#DCFCE7', fg: '#15803D' },
+      reconciled: { label: '💰 Hoàn tất',        bg: '#DCFCE7', fg: '#15803D' },
+      cancelled:  { label: '✕ Đã hủy',          bg: '#FEE2E2', fg: '#B91C1C' },
+    };
+    var STEPS = [
+      { k: 'confirmed', t: 'Đã tiếp nhận đơn' },
+      { k: 'pickup',    t: 'Đang lấy hàng' },
+      { k: 'transit',   t: 'Đang vận chuyển' },
+      { k: 'delivered', t: 'Đã giao thành công' },
+      { k: 'reconciled', t: 'Hoàn tất' },
+    ];
+    var resultEl = document.getElementById('result');
+    function city(addr) { return ((addr || '').split(',').pop() || addr || '—').trim(); }
+
+    async function loadOrder(code) {
+      code = (code || '').trim().toUpperCase();
+      if (!code) return null;
+      // Ưu tiên Supabase (production), fallback mock local
+      if (window.SB) {
+        try {
+          var r = await window.SB.from('orders').select('*').eq('code', code).maybeSingle();
+          if (r && r.data) return {
+            code: r.data.code, status: r.data.status, serviceType: r.data.service_type,
+            pickup: r.data.pickup, drop: r.data.drop_address || r.data.drop,
+            date: r.data.date_label || r.data.date, driverName: r.data.driver_name,
+            cancelReason: r.data.cancel_reason,
+          };
+        } catch (e) { /* ignore, thử mock */ }
+      }
+      var list = window.ORDERS || [];
+      return list.find(function (o) { return (o.code || '').toUpperCase() === code; }) || null;
+    }
+
+    function renderTimeline(o) {
+      if (o.status === 'cancelled') {
+        return '<div class="tl"><div class="tl-item current"><div class="dot"></div><div><div class="t1">Đơn đã hủy</div><div class="t2">' +
+          (o.cancelReason || '') + '</div></div></div></div>';
+      }
+      var cur = STEPS.map(function (s) { return s.k; }).indexOf(o.status);
+      if (cur < 0) cur = 0;
+      return '<div class="tl">' + STEPS.map(function (s, i) {
+        var cls = i < cur ? 'done' : i === cur ? 'current' : 'pending';
+        var sub = i < cur ? 'Đã hoàn thành' : i === cur ? 'Đang ở bước này' : 'Chưa diễn ra';
+        return '<div class="tl-item ' + cls + '"><div class="dot"></div><div><div class="t1">' +
+          s.t + '</div><div class="t2">' + sub + '</div></div></div>';
+      }).join('') + '</div>';
+    }
+
+    function render(o) {
+      if (!o) {
+        resultEl.innerHTML = '<div class="msg">Không tìm thấy đơn hàng. Vui lòng kiểm tra lại mã.</div>';
+        return;
+      }
+      var st = STATUS[o.status] || STATUS.confirmed;
+      resultEl.innerHTML =
+        '<div class="card">' +
+          '<div class="code">' + o.code + '</div>' +
+          '<span class="badge" style="background:' + st.bg + ';color:' + st.fg + '">' + st.label + '</span>' +
+          '<div class="route"><span class="city">' + city(o.pickup) + '</span><span class="arr">→</span><span class="city">' + city(o.drop) + '</span></div>' +
+          '<div class="meta">Ngày tạo: ' + (o.date || '—') + (o.driverName ? ' · Phụ trách giao: ' + o.driverName : '') + '</div>' +
+          renderTimeline(o) +
+        '</div>';
+    }
+
+    async function go() {
+      resultEl.innerHTML = '<div class="msg">Đang tra cứu…</div>';
+      render(await loadOrder(document.getElementById('q').value));
+    }
+    document.getElementById('btn').onclick = go;
+    document.getElementById('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+
+    // Auto từ ?code=
+    var code = new URLSearchParams(location.search).get('code');
+    if (code) { document.getElementById('q').value = code; go(); }
+  })();
+  </script>
+</body>
+</html>

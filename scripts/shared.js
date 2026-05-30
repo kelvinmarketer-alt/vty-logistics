@@ -143,6 +143,44 @@ window.overdueDays = function(c) {
   return Math.max(0, elapsed - window.DEBT_TERM_DAYS);
 };
 
+/* Doanh thu được ghi nhận khi đơn đã giao/đối soát */
+window.REVENUE_STATUSES = ['delivered', 'reconciled'];
+
+/* Gom doanh thu (freight) đơn đã giao theo N ngày gần nhất → [{label,v}] */
+window.revenueLastDays = function(orders, n) {
+  const out = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    const v = (orders || []).reduce((s, o) => {
+      if (!window.REVENUE_STATUSES.includes(o.status)) return s;
+      const od = window.parseVNDate(o.date);
+      if (!od || od.getFullYear() !== d.getFullYear() || od.getMonth() !== d.getMonth() || od.getDate() !== d.getDate()) return s;
+      return s + (o.freight || 0);
+    }, 0);
+    out.push({ label: i === 0 ? 'Hôm nay' : `${d.getDate()}/${d.getMonth() + 1}`, v });
+  }
+  return out;
+};
+
+/* Gom doanh thu đơn đã giao theo N tháng gần nhất → [{label,v}] */
+window.revenueLastMonths = function(orders, n) {
+  const out = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const y = d.getFullYear(), m = d.getMonth();
+    const v = (orders || []).reduce((s, o) => {
+      if (!window.REVENUE_STATUSES.includes(o.status)) return s;
+      const od = window.parseVNDate(o.date);
+      if (!od || od.getFullYear() !== y || od.getMonth() !== m) return s;
+      return s + (o.freight || 0);
+    }, 0);
+    out.push({ label: `T${m + 1}/${String(y).slice(-2)}`, v });
+  }
+  return out;
+};
+
 window.initials = function(name) {
   return name
     .replace(/Cty\s+(TNHH|CP|CỔ PHẦN)\s+/i, '')

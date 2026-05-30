@@ -226,11 +226,12 @@
     <div class="tab-pane" data-pane="actions">
       <div class="section-h">Hành động</div>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn btn-primary" onclick="window.toast('Đã chuyển trạng thái kế tiếp','success')">▶ Chuyển trạng thái kế tiếp</button>
-        <button class="btn btn-navy" onclick="window.toast('In phiếu giao hàng','info')">🖨 In phiếu giao hàng</button>
-        <button class="btn btn-ghost" onclick="window.toast('Đã gửi SMS cho khách','success')">📱 Gửi SMS cho khách</button>
-        <button class="btn btn-ghost" onclick="window.toast('Đã sao chép link tracking','success')">🔗 Sao chép link tracking</button>
-        <button class="btn btn-ghost" style="color:var(--danger);border-color:var(--danger)" onclick="if(confirm('Hủy đơn này?')){window.toast('Đã hủy đơn','danger');window.closeDrawer()}">✕ Hủy đơn</button>
+        <button class="btn btn-primary" type="button">▶ Chuyển trạng thái kế tiếp</button>
+        <button class="btn btn-navy" type="button">🖨 In phiếu giao hàng</button>
+        <button class="btn btn-ghost" type="button">🧾 Tạo hóa đơn VAT</button>
+        <button class="btn btn-ghost" type="button">📱 Gửi SMS cho khách</button>
+        <button class="btn btn-ghost" type="button">🔗 Sao chép link tracking</button>
+        <button class="btn btn-ghost" type="button" style="color:var(--danger);border-color:var(--danger)">✕ Hủy đơn</button>
       </div>
     </div>
 
