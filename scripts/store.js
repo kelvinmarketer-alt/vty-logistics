@@ -12,6 +12,7 @@
   const _data = {};
   const _subs = {};
   const _preloaded = new Set();
+  const _realtimeOn = new Set();
 
   /* Mapping STORE key → Supabase table name */
   const TABLE_MAP = {
@@ -74,13 +75,40 @@
     }
   }
 
+  /* Realtime: khi user khác đổi data trên Supabase → pull về local + re-render.
+     Server là nguồn chân lý nên replace thẳng (kể cả khi về 0 do bị xóa). */
+  function _refreshFromSupabase(key) {
+    if (!isSupabaseMode()) return;
+    const table = TABLE_MAP[key];
+    if (!table) return;
+    window.SB_DATA.getAll(table).then(data => {
+      if (!Array.isArray(data)) return;
+      _data[key] = data;
+      try { localStorage.setItem(PREFIX + key, JSON.stringify(data)); } catch (e) {}
+      (_subs[key] || []).forEach(fn => fn(_data[key]));
+    }).catch(e => console.warn(`[STORE realtime refresh ${key}]`, e.message));
+  }
+
+  function _subscribeRealtime(key) {
+    if (_realtimeOn.has(key)) return;
+    if (!isSupabaseMode() || !window.SB_DATA?.subscribe) return;
+    const table = TABLE_MAP[key];
+    if (!table) return;
+    _realtimeOn.add(key);
+    try {
+      window.SB_DATA.subscribe(table, () => _refreshFromSupabase(key));
+      console.log(`[STORE] Realtime ON: ${key}`);
+    } catch (e) { console.warn(`[STORE realtime sub ${key}]`, e.message); }
+  }
+
   window.STORE = {
     /* Lấy dữ liệu — sync, return cache instantly */
     get(key, fallback) {
       if (!(key in _data)) _data[key] = _load(key, fallback);
-      /* Fire-and-forget preload từ Supabase lần đầu */
-      if (isSupabaseMode() && TABLE_MAP[key] && !_preloaded.has(key)) {
-        _preloadFromSupabase(key);
+      /* Fire-and-forget preload + bật realtime từ Supabase lần đầu */
+      if (isSupabaseMode() && TABLE_MAP[key]) {
+        if (!_preloaded.has(key)) _preloadFromSupabase(key);
+        _subscribeRealtime(key);
       }
       return _data[key];
     },
@@ -104,10 +132,16 @@
       const arr = this.get(key, fallback);
       arr.unshift(item);
       _save(key);
-      /* Push to Supabase */
+      /* Push to Supabase — báo rõ nếu KHÔNG đồng bộ được (insert lỗi → trả null) */
       if (isSupabaseMode() && TABLE_MAP[key]) {
         window.SB_DATA.insert(TABLE_MAP[key], item)
-          .catch(e => console.warn(`[STORE add ${key} → SB]`, e));
+          .then(res => {
+            if (!res) window.toast?.('⚠ CHƯA lưu lên server (' + key + '). Dữ liệu chỉ ở máy này — kiểm tra mạng/đăng nhập rồi thử lại.', 'danger');
+          })
+          .catch(e => {
+            console.warn(`[STORE add ${key} → SB]`, e);
+            window.toast?.('⚠ Lỗi đồng bộ ' + key + ' lên server', 'danger');
+          });
       }
       return item;
     },
