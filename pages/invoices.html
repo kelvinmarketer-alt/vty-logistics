@@ -25,6 +25,7 @@
       </div>
       <div class="head-actions">
         <button class="btn btn-ghost" onclick="window.openCQTReconcile()">🔄 Đối chiếu CQT</button>
+        <button class="btn btn-ghost" onclick="window.openBulkImport('invoices')">📥 Nhập từ ảnh/Excel</button>
         <button class="btn btn-ghost" onclick="window.exportInvExcel()">⬇ Xuất Excel</button>
         <button class="btn btn-primary" onclick="window.openModal('+ Hóa đơn mới',formHd(),{footer:footHd(),width:'620px'})">+ Xuất HĐ</button>
       </div>
@@ -78,6 +79,7 @@
 <script src="../scripts/store.js"></script>
 <script src="../scripts/auth.js"></script>
 <script>if(window.AUTH) window.AUTH.requireAuth();</script>
+<script src="../scripts/bulk-import.js"></script>
 <script src="../scripts/invoices.js"></script>
 </body>
 </html>

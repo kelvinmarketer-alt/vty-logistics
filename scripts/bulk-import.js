@@ -110,6 +110,50 @@
       },
     },
 
+    drivers: {
+      storeKey: 'drivers', title: 'Tài xế',
+      cols: [
+        { key: 'name', label: 'Họ tên', required: true, aliases: ['ho ten', 'ten', 'name', 'tai xe'] },
+        { key: 'phone', label: 'SĐT', required: true, aliases: ['sdt', 'dien thoai', 'phone'] },
+        { key: 'license', label: 'Bằng lái', aliases: ['bang lai', 'gplx', 'license', 'hang bang'] },
+        { key: 'primaryPlate', label: 'Xe chính', aliases: ['xe chinh', 'bien so', 'plate'] },
+        { key: 'joinDate', label: 'Ngày vào', aliases: ['ngay vao', 'join date'] },
+        { key: 'address', label: 'Địa chỉ', aliases: ['dia chi', 'address'] },
+      ],
+      build(r) {
+        const code = window.STORE.nextId('drivers', 'TX', 3);
+        const arr = window.STORE.get('drivers', []);
+        const id = 'DR' + String(arr.length + 1).padStart(2, '0');
+        return {
+          id, code, name: r.name, phone: r.phone || '', license: r.license || '',
+          canDrive: [], primaryVehicle: null, primaryPlate: r.primaryPlate || '(chưa phân công)',
+          status: 'off', joinDate: r.joinDate || new Date().toLocaleDateString('vi-VN'),
+          address: r.address || '', trips30d: 0, revenue30d: 0, rating: 5.0, recentTrips: [],
+        };
+      },
+    },
+
+    invoices: {
+      storeKey: 'invoices', title: 'Hóa đơn (nháp)',
+      cols: [
+        { key: 'cust', label: 'Khách hàng', required: true, aliases: ['khach hang', 'kh', 'customer', 'nguoi mua'] },
+        { key: 'tax', label: 'MST', aliases: ['mst', 'ma so thue', 'tax'] },
+        { key: 'desc', label: 'Diễn giải', required: true, aliases: ['dien giai', 'noi dung', 'mo ta', 'desc'] },
+        { key: 'net', label: 'Tiền hàng', type: 'int', required: true, aliases: ['tien hang', 'thanh tien', 'net', 'truoc thue'] },
+        { key: 'vatRate', label: 'VAT %', type: 'int', aliases: ['vat', 'thue suat', 'vat rate', 'thue gtgt'] },
+        { key: 'date', label: 'Ngày', aliases: ['ngay', 'date', 'ngay lap'] },
+      ],
+      build(r) {
+        const net = nInt(r.net);
+        const rate = (r.vatRate === '' || r.vatRate == null || nInt(r.vatRate) === 0) ? 10 : nInt(r.vatRate);
+        const vat = Math.round(net * rate / 100);
+        return {
+          no: '(nháp)', date: r.date || new Date().toLocaleDateString('vi-VN'),
+          cust: r.cust, tax: r.tax || '', desc: r.desc || '', net, vat, status: 'draft',
+        };
+      },
+    },
+
     orders: {
       storeKey: 'orders', title: 'Đơn hàng',
       cols: [
@@ -250,6 +294,146 @@
 
   let _parsed = null, _curKey = null;
 
+  /* =========================================================
+     NHẬP TỪ ẢNH (AI Vision) — tái dùng API key ở Settings → Tích hợp → AI Form Filler
+     ========================================================= */
+  function getAiCfg() { return window.STORE.get('int_ai-engine', {}) || {}; }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result).split(',')[1]); /* bỏ tiền tố data:... */
+      fr.onerror = () => reject(new Error('Không đọc được ảnh'));
+      fr.readAsDataURL(file);
+    });
+  }
+
+  function extractJSON(text) {
+    if (!text) return [];
+    let t = String(text).trim().replace(/^```(?:json)?/i, '').replace(/```$/,'').trim();
+    /* lấy mảng/object JSON đầu tiên */
+    const a = t.indexOf('['), b = t.lastIndexOf(']');
+    const c = t.indexOf('{'), d = t.lastIndexOf('}');
+    let frag = t;
+    if (a !== -1 && b > a) frag = t.slice(a, b + 1);
+    else if (c !== -1 && d > c) frag = t.slice(c, d + 1);
+    let parsed = JSON.parse(frag);
+    if (!Array.isArray(parsed)) parsed = [parsed];
+    return parsed;
+  }
+
+  function buildVisionPrompt(schema) {
+    const lines = schema.cols.map(col => {
+      const t = col.type === 'int' ? ' (chỉ chữ số)' : '';
+      return `- "${col.key}": ${col.label}${col.required ? ' [BẮT BUỘC]' : ''}${t}`;
+    }).join('\n');
+    return `Bạn là trợ lý nhập liệu cho phần mềm logistics VTY. Trích xuất dữ liệu "${schema.title}" từ ảnh (chứng từ, đơn hàng, danh sách, bảng kê, hóa đơn, danh thiếp…).
+Trả về DUY NHẤT một mảng JSON. Mỗi phần tử là một bản ghi với các khóa sau (để chuỗi rỗng "" nếu ảnh không có):
+${lines}
+
+Quy tắc:
+- Nếu ảnh có nhiều dòng/bản ghi → trả về nhiều phần tử.
+- Trường số tiền/khối lượng/số lượng: chỉ lấy chữ số, bỏ dấu chấm/phẩy/đơn vị.
+- KHÔNG bịa thông tin. KHÔNG kèm giải thích. Chỉ in JSON.`;
+  }
+
+  async function callVision(cfg, prompt, b64, mime) {
+    const provider = cfg.provider || 'gemini';
+    const key = (cfg.apiKey || '').trim();
+    if (!key) throw new Error('NO_KEY');
+
+    if (provider === 'gemini') {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`;
+      const res = await fetch(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: b64 } }] }],
+          generationConfig: { response_mime_type: 'application/json', temperature: 0 },
+        }),
+      });
+      if (!res.ok) throw new Error('Gemini HTTP ' + res.status + ' — ' + (await res.text()).slice(0, 200));
+      const data = await res.json();
+      return data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
+    }
+
+    if (provider === 'claude') {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json', 'x-api-key': key,
+          'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-3-5-sonnet-20241022', max_tokens: 4096,
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
+            { type: 'text', text: prompt },
+          ] }],
+        }),
+      });
+      if (!res.ok) throw new Error('Claude HTTP ' + res.status + ' — ' + (await res.text()).slice(0, 200));
+      const data = await res.json();
+      return data?.content?.map(c => c.text || '').join('') || '';
+    }
+
+    /* openai */
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({
+        model: 'gpt-4o', temperature: 0,
+        messages: [{ role: 'user', content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } },
+        ] }],
+      }),
+    });
+    if (!res.ok) throw new Error('OpenAI HTTP ' + res.status + ' — ' + (await res.text()).slice(0, 200));
+    const data = await res.json();
+    return data?.choices?.[0]?.message?.content || '';
+  }
+
+  async function handleImageParse(file) {
+    const key = _curKey, schema = SCHEMAS[key];
+    const cfg = getAiCfg();
+    const box = document.getElementById('biPreview');
+    if (!(cfg.apiKey || '').trim()) {
+      box.innerHTML = `<div style="padding:12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;color:#B91C1C;font-size:13px">
+        ⚠️ Chưa cấu hình API Key AI. Vào <b>Cài đặt → Tích hợp → AI Form Filler</b> để nhập key (Gemini FREE).</div>`;
+      return;
+    }
+    box.innerHTML = `<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">🧠 AI đang đọc ảnh… (vài giây)</div>`;
+    document.getElementById('biSubmit').disabled = true;
+    try {
+      const b64 = await fileToBase64(file);
+      const mime = file.type || 'image/jpeg';
+      const text = await callVision(cfg, buildVisionPrompt(schema), b64, mime);
+      const rawRows = extractJSON(text);
+      /* chỉ giữ khóa thuộc schema + chuẩn hóa */
+      const rows = rawRows.map(o => {
+        const r = {};
+        schema.cols.forEach(c => {
+          let v = o[c.key];
+          if (v == null) v = '';
+          r[c.key] = c.type === 'int' ? String(nInt(v) || '') : String(v).trim();
+        });
+        return r;
+      }).filter(r => schema.cols.some(c => r[c.key]));
+      if (!rows.length) {
+        box.innerHTML = `<div style="padding:12px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;color:#92400E;font-size:13px">
+          🤔 AI không trích được dữ liệu rõ ràng từ ảnh. Thử ảnh nét hơn hoặc nhập tay.</div>`;
+        return;
+      }
+      renderPreview(key, { rows, headerIdx: {}, unmatchedRequired: [] });
+      window.toast(`🧠 AI đọc được ${rows.length} dòng từ ảnh — kiểm tra rồi bấm Nhập`, 'success');
+    } catch (e) {
+      const msg = e.message === 'NO_KEY' ? 'Chưa cấu hình API Key AI'
+        : /Failed to fetch|NetworkError/i.test(e.message) ? 'Lỗi mạng hoặc CORS khi gọi AI. Kiểm tra key/kết nối.'
+        : e.message;
+      box.innerHTML = `<div style="padding:12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;color:#B91C1C;font-size:13px">⚠️ ${msg}</div>`;
+    }
+  }
+
   /* === Render bảng preview === */
   function renderPreview(key, result) {
     const schema = SCHEMAS[key];
@@ -336,6 +520,11 @@
       </div>
       <div class="form-row wide"><label>… hoặc dán bảng (copy từ Excel rồi Ctrl+V)</label>
         <textarea id="biPaste" rows="4" placeholder="Dán dữ liệu có dòng tiêu đề ở đầu..."></textarea></div>
+      <div style="margin:6px 0 10px;padding:12px;border:1px dashed var(--line,#E5E7EB);border-radius:10px;background:#FAFBFC">
+        <div style="font-size:12.5px;font-weight:600;color:var(--navy,#1C2D5A);margin-bottom:6px">📷 Hoặc nhập từ <b>ảnh</b> (AI đọc tự động)</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">Chụp/đăng ảnh chứng từ, đơn hàng, bảng kê, danh thiếp… AI sẽ trích thành dòng. Dùng API key ở <b>Cài đặt → Tích hợp → AI Form Filler</b>.</div>
+        <input id="biImage" type="file" accept="image/*" capture="environment">
+      </div>
       <div id="biPreview"></div>
     `, {
       footer: `<button class="btn btn-ghost" onclick="closeModal()">Hủy</button>
@@ -343,6 +532,10 @@
       width: '820px',
     });
     document.getElementById('biFile').addEventListener('change', handleParse);
+    const imgEl = document.getElementById('biImage');
+    if (imgEl) imgEl.addEventListener('change', () => {
+      if (imgEl.files && imgEl.files[0]) handleImageParse(imgEl.files[0]);
+    });
   };
 
   window._biTemplate = downloadTemplate;

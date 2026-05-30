@@ -229,15 +229,17 @@
 
     /* Lịch sử đơn — lấy từ STORE.orders nếu có */
     const allOrders = window.STORE.get('orders', window.ORDERS || []);
-    const orderHistory = allOrders.filter(o => o.cust === c.id);
+    const cName = (c.name || '').toLowerCase();
+    const orderHistory = allOrders.filter(o =>
+      o.cust === c.id || (o.custName && o.custName.toLowerCase() === cName));
     document.getElementById('tabOrdCnt').textContent = orderHistory.length || c.orders;
     const otb = document.querySelector('#ordersTable tbody');
     if (orderHistory.length) {
       otb.innerHTML = orderHistory.slice(0, 10).map(o => `<tr>
-        <td><b>${o.code}</b></td><td>${o.date}</td>
-        <td>${o.pickup.split(',')[0]} → ${o.drop.split(',')[0]}</td>
-        <td>${o.goods}</td>
-        <td class="num">${window.fmt(o.freight)}</td>
+        <td><b>${o.code}</b></td><td>${o.date || '—'}</td>
+        <td>${(o.pickup || '').split(',')[0] || '—'} → ${(o.drop || '').split(',')[0] || '—'}</td>
+        <td>${o.goods || '—'}</td>
+        <td class="num">${window.fmt(o.freight || 0)}</td>
         <td class="num">${o.cod ? window.fmt(o.cod) : '—'}</td>
         <td><span class="status-pill st-${o.status}">${o.status === 'delivered' ? 'Đã giao' : o.status === 'transit' ? 'Đang giao' : o.status === 'reconciled' ? 'Đối soát' : o.status === 'cancelled' ? 'Hủy' : 'Mới'}</span></td>
       </tr>`).join('');

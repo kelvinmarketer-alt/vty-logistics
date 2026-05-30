@@ -77,10 +77,10 @@
         <td><span class="status-pill ${stCls}">${stLab}</span></td>
         <td onclick="event.stopPropagation()">
           <div class="row-actions">
-            <button class="ra-zalo" data-act="zalo" data-id="${p.id}">Z</button>
-            <button class="ra-call" data-act="call" data-id="${p.id}">📞</button>
-            <button data-act="edit" data-id="${p.id}">✏️</button>
-            <button data-act="del" data-id="${p.id}" style="color:var(--danger)">🗑</button>
+            <button class="ra-zalo" data-act="zalo" data-id="${p.id}" title="Nhắn Zalo">Z</button>
+            <button class="ra-call" data-act="call" data-id="${p.id}" title="Gọi điện">📞</button>
+            <button data-act="edit" data-id="${p.id}" title="Sửa / xem">✏️</button>
+            <button data-act="del" data-id="${p.id}" style="color:var(--danger)" title="Xóa">🗑</button>
           </div>
         </td>
       </tr>`;
@@ -226,9 +226,9 @@
           <span class="status-pill st-${v.status === 'running' ? 'transit' : v.status === 'idle' ? 'confirmed' : 'pickup'}" style="font-size:10px">${stLab}</span>
         </div>
         <div class="v-foot">
-          <button data-act="fuel" data-id="${v.id}">⛽ Đổ xăng</button>
-          <button data-act="detail" data-id="${v.id}">📋 Chi tiết</button>
-          <button data-act="del" data-id="${v.id}" style="color:var(--danger)">🗑</button>
+          <button data-act="fuel" data-id="${v.id}" title="Ghi nhật ký đổ xăng">⛽ Đổ xăng</button>
+          <button data-act="detail" data-id="${v.id}" title="Xem chi tiết xe">📋 Chi tiết</button>
+          <button data-act="del" data-id="${v.id}" style="color:var(--danger)" title="Xóa xe">🗑</button>
         </div>
       </div>`;
     }).join('');
@@ -292,10 +292,10 @@
         <td><span class="status-pill ${stCls}">${stLab}</span></td>
         <td onclick="event.stopPropagation()">
           <div class="row-actions">
-            <button class="ra-zalo" data-act="zalo" data-id="${d.id}">Z</button>
-            <button class="ra-call" data-act="call" data-id="${d.id}">📞</button>
-            <button data-act="edit" data-id="${d.id}">✏️</button>
-            <button data-act="del" data-id="${d.id}" style="color:var(--danger)">🗑</button>
+            <button class="ra-zalo" data-act="zalo" data-id="${d.id}" title="Nhắn Zalo">Z</button>
+            <button class="ra-call" data-act="call" data-id="${d.id}" title="Gọi điện">📞</button>
+            <button data-act="edit" data-id="${d.id}" title="Sửa / xem">✏️</button>
+            <button data-act="del" data-id="${d.id}" style="color:var(--danger)" title="Xóa">🗑</button>
           </div>
         </td>
       </tr>`;

@@ -43,6 +43,23 @@
       navigator.serviceWorker.register('/sw.js').catch(err => console.warn('[PWA] SW register failed:', err));
     });
   }
+
+  /* === Vá nhẹ tốc độ điều hướng ===
+     Preconnect tới Supabase + CDN ngay từ đầu để mỗi lần chuyển trang
+     không phải bắt tay DNS/TLS lại từ đầu (giảm độ trễ tải data). */
+  function preconnect(href, crossorigin) {
+    if (!href || document.querySelector(`link[rel="preconnect"][href="${href}"]`)) return;
+    const l = document.createElement('link');
+    l.rel = 'preconnect';
+    l.href = href;
+    if (crossorigin) l.crossOrigin = 'anonymous';
+    document.head.appendChild(l);
+  }
+  try {
+    const sbUrl = window.SUPABASE_CONFIG?.url;
+    if (sbUrl) preconnect(sbUrl, true);
+    preconnect('https://cdn.jsdelivr.net', true);
+  } catch (e) {}
 })();
 
 /* ============ Brand logo =============
@@ -406,6 +423,192 @@ window.renderAppShell = function(activeId, breadcrumbText) {
       if (window.innerWidth <= 980) window.toggleSidebar(false);
     });
   });
+
+  /* Kích hoạt chuông thông báo + tooltip hover trên mọi trang */
+  try { window.initNotifications(); } catch (e) { console.warn('[notif]', e); }
+  try { window.enhanceTooltips(); } catch (e) {}
+};
+
+/* =========================================================
+   TRUNG TÂM THÔNG BÁO — sinh thông báo thật từ dữ liệu STORE
+   Tự gắn vào nút 🔔 ở topbar mọi trang.
+   ========================================================= */
+window.buildNotifications = function() {
+  const list = [];
+  const S = window.STORE;
+  if (!S) return list;
+  const today = new Date();
+  const daysBetween = (d) => d ? Math.floor((today - d) / 86_400_000) : null;
+
+  /* 1) Công nợ quá hạn (có số tiền quá hạn thực) */
+  try {
+    const custs = S.get('customers', window.CUSTOMERS || []);
+    custs.filter(c => c.debtOverdue > 0).forEach(c => {
+      const ov = window.overdueDays ? window.overdueDays(c) : 0;
+      list.push({
+        icon: '💸', type: c.debtOverdue > 20_000_000 || ov > 60 ? 'danger' : 'warn',
+        title: ov > 0 ? `${c.name} quá hạn ${ov} ngày` : `${c.name} có nợ quá hạn`,
+        sub: `Quá hạn ${window.fmt(c.debtOverdue)} ₫` + (c.debt ? ` / tổng ${window.fmt(c.debt)} ₫` : ''),
+        href: 'debt.html', sort: 100000 + c.debtOverdue / 1e6,
+      });
+    });
+  } catch (e) {}
+
+  /* 2) Hóa đơn quá hạn / chờ thanh toán */
+  try {
+    S.get('invoices', window.INVOICES || []).filter(i => i.status === 'overdue').forEach(i => {
+      list.push({
+        icon: '🧾', type: 'danger',
+        title: `HĐ ${i.no} quá hạn`,
+        sub: `${i.cust} · ${window.fmt((i.net || 0) + (i.vat || 0))} ₫`,
+        href: 'invoices.html', sort: 90000,
+      });
+    });
+  } catch (e) {}
+
+  /* 3) Xe sắp hết hạn đăng kiểm / bảo hiểm (trong 30 ngày) */
+  try {
+    S.get('vehicles', window.VEHICLES || []).forEach(v => {
+      [['đăng kiểm', v.regExpiry || v.inspectionExpiry], ['bảo hiểm', v.insExpiry || v.insuranceExpiry]].forEach(([lab, raw]) => {
+        const d = window.parseVNDate ? window.parseVNDate(raw) : null;
+        if (!d) return;
+        const left = Math.floor((d - today) / 86_400_000);
+        if (left <= 30) {
+          list.push({
+            icon: '🚚', type: left < 0 ? 'danger' : 'warn',
+            title: `${v.plate} ${left < 0 ? 'đã hết hạn' : 'sắp hết'} ${lab}`,
+            sub: left < 0 ? `Quá ${-left} ngày` : `Còn ${left} ngày (${raw})`,
+            href: 'fleet.html', sort: 80000 - left,
+          });
+        }
+      });
+    });
+  } catch (e) {}
+
+  /* 4) Đơn đang giao/lấy hàng lâu chưa cập nhật (>2 ngày) */
+  try {
+    S.get('orders', window.ORDERS || []).filter(o => o.status === 'pickup' || o.status === 'transit').forEach(o => {
+      const d = window.parseVNDate ? window.parseVNDate(o.date) : null;
+      const ago = daysBetween(d);
+      if (ago != null && ago >= 2) {
+        list.push({
+          icon: '📦', type: 'warn',
+          title: `Đơn ${o.code} ${o.status === 'pickup' ? 'chưa lấy hàng' : 'đang vận chuyển'} ${ago} ngày`,
+          sub: `${o.custName || o.cust || ''}`,
+          href: 'orders.html', sort: 1000 + ago,
+        });
+      }
+    });
+  } catch (e) {}
+
+  return list.sort((a, b) => (b.sort || 0) - (a.sort || 0));
+};
+
+window.initNotifications = function() {
+  const bells = [...document.querySelectorAll('.topbar .icon-btn')].filter(b => /🔔/.test(b.textContent));
+  if (!bells.length) return;
+  const notifs = window.buildNotifications();
+  const n = notifs.length;
+
+  bells.forEach(bell => {
+    bell.title = 'Thông báo';
+    /* badge số */
+    let dot = bell.querySelector('.dot');
+    if (n > 0) {
+      if (!dot) { dot = document.createElement('span'); dot.className = 'dot'; bell.appendChild(dot); }
+      dot.textContent = n > 9 ? '9+' : String(n);
+      dot.classList.add('dot-count');
+    } else if (dot) {
+      dot.remove();
+    }
+    bell.onclick = (e) => { e.stopPropagation(); window.toggleNotifPanel(bell, notifs); };
+  });
+};
+
+window.toggleNotifPanel = function(anchor, notifs) {
+  const existing = document.getElementById('notif-panel');
+  if (existing) { existing.remove(); return; }
+  const items = notifs.length ? notifs.map(x => `
+    <a class="notif-item" href="${x.href}">
+      <span class="ni-ico ni-${x.type}">${x.icon}</span>
+      <span class="ni-body">
+        <span class="ni-title">${x.title}</span>
+        <span class="ni-sub">${x.sub || ''}</span>
+      </span>
+    </a>`).join('') : `<div class="notif-empty">✓ Không có thông báo mới</div>`;
+  const panel = document.createElement('div');
+  panel.id = 'notif-panel';
+  panel.innerHTML = `
+    <div class="notif-head">🔔 Thông báo <span>${notifs.length}</span></div>
+    <div class="notif-list">${items}</div>`;
+  document.body.appendChild(panel);
+  const r = anchor.getBoundingClientRect();
+  panel.style.top = (r.bottom + 8) + 'px';
+  panel.style.right = Math.max(12, window.innerWidth - r.right - 4) + 'px';
+  /* click ngoài để đóng */
+  setTimeout(() => {
+    const close = (ev) => { if (!panel.contains(ev.target)) { panel.remove(); document.removeEventListener('click', close); } };
+    document.addEventListener('click', close);
+  }, 0);
+};
+
+/* =========================================================
+   TOOLTIP HOVER — biến title trên nút thao tác thành tooltip đẹp
+   ========================================================= */
+window.enhanceTooltips = function() {
+  if (window._tipDelegated) return;
+  window._tipDelegated = true;
+  /* Lazy: lần đầu hover vào nút có title → chuyển sang tooltip đẹp (data-tip).
+     Cách này tự áp dụng cho cả các nút render động sau này. */
+  document.addEventListener('mouseover', (e) => {
+    const el = e.target.closest && e.target.closest('button[title], a[title], .icon-btn[title], [data-act][title]');
+    if (!el) return;
+    const t = el.getAttribute('title');
+    if (t) {
+      el.setAttribute('data-tip', t);
+      el.removeAttribute('title');
+      el.classList.add('has-tip');
+    }
+  }, true);
+};
+
+/* =========================================================
+   AUTOCOMPLETE KHÁCH HÀNG — ô nhập tự do + gợi ý trùng khớp
+   custInputHTML(id, value, placeholder) → HTML input + datalist
+   bindCustField(id) → khi blur/chọn, lưu custId vào input.dataset.custId
+   resolveCust(text) → tìm KH theo tên/mã/sđt khớp
+   ========================================================= */
+window.resolveCust = function(text) {
+  if (!text) return null;
+  const t = String(text).trim().toLowerCase();
+  const custs = window.STORE.get('customers', window.CUSTOMERS || []);
+  /* khớp chính xác mã/tên trước, rồi tới chứa */
+  return custs.find(c => (c.code || '').toLowerCase() === t || (c.name || '').toLowerCase() === t)
+      || custs.find(c => `${c.code} · ${c.name}`.toLowerCase() === t)
+      || custs.find(c => (c.name || '').toLowerCase().includes(t) || (c.code || '').toLowerCase().includes(t) || (c.phone || '').replace(/\s/g, '').includes(t.replace(/\s/g, '')))
+      || null;
+};
+
+window.custInputHTML = function(id, value = '', placeholder = 'Gõ tên / mã KH để tìm…') {
+  const listId = id + 'List';
+  const custs = window.STORE.get('customers', window.CUSTOMERS || []);
+  const opts = custs.map(c => `<option value="${(c.name || '').replace(/"/g, '&quot;')}">${c.code}${c.phone ? ' · ' + c.phone : ''}</option>`).join('');
+  return `<input id="${id}" list="${listId}" value="${String(value).replace(/"/g, '&quot;')}" placeholder="${placeholder}" autocomplete="off">
+          <datalist id="${listId}">${opts}</datalist>`;
+};
+
+/* Gắn xử lý: khi user chọn/nhập xong → resolve KH, gọi onPick(cust|null, rawText) */
+window.bindCustField = function(id, onPick) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const handler = () => {
+    const c = window.resolveCust(el.value);
+    el.dataset.custId = c ? c.id : '';
+    if (c && el.value !== c.name) el.value = c.name; /* chuẩn hóa hiển thị */
+    if (typeof onPick === 'function') onPick(c, el.value);
+  };
+  el.addEventListener('change', handler);
+  el.addEventListener('blur', handler);
 };
 
 window.toggleSidebar = function(force) {
@@ -882,5 +1085,39 @@ _styleEl.textContent = `
 .guide-callout.warn{background:#FEF3C7;border:1px solid #FCD34D;color:var(--warn)}
 .guide-callout.info{background:#DBEAFE;border:1px solid #93C5FD;color:var(--info)}
 .guide-callout.tip{background:#F3E8FF;border:1px solid #E9D5FF;color:#7C3AED}
+
+/* === Badge số trên chuông === */
+.icon-btn{position:relative}
+.dot.dot-count{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;
+  background:var(--red,#C8102E);color:#fff;border-radius:999px;font-size:10px;font-weight:700;
+  display:grid;place-items:center;line-height:1;border:2px solid #fff;box-sizing:content-box}
+
+/* === Panel thông báo === */
+#notif-panel{position:fixed;z-index:9998;width:min(360px,92vw);background:#fff;border:1px solid var(--line,#E5E7EB);
+  border-radius:12px;box-shadow:0 12px 40px rgba(17,24,39,.18);overflow:hidden;animation:toastIn .15s ease}
+#notif-panel .notif-head{padding:12px 16px;font-weight:700;color:var(--navy,#1C2D5A);border-bottom:1px solid var(--line,#E5E7EB);
+  display:flex;align-items:center;gap:8px;font-size:14px}
+#notif-panel .notif-head span{margin-left:auto;background:var(--navy-soft,#EEF1F8);color:var(--navy,#1C2D5A);
+  border-radius:999px;font-size:11px;padding:1px 8px;font-weight:700}
+#notif-panel .notif-list{max-height:min(420px,60vh);overflow:auto}
+.notif-item{display:flex;gap:10px;padding:11px 16px;border-bottom:1px solid #F1F2F5;text-decoration:none;color:inherit}
+.notif-item:hover{background:#FAFAFB}
+.notif-item:last-child{border-bottom:none}
+.ni-ico{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-size:16px;flex:0 0 auto}
+.ni-ico.ni-danger{background:#FEE2E2}.ni-ico.ni-warn{background:#FEF3C7}.ni-ico.ni-info{background:#DBEAFE}
+.ni-body{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ni-title{font-size:13px;font-weight:600;color:var(--text,#1C2D5A);line-height:1.3}
+.ni-sub{font-size:11.5px;color:var(--muted,#8A90A0)}
+.notif-empty{padding:30px 16px;text-align:center;color:var(--muted,#8A90A0);font-size:13px}
+
+/* === Tooltip hover (đọc từ data-tip) === */
+.has-tip{position:relative}
+.has-tip::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%) scale(.96);
+  background:#1C2D5A;color:#fff;font-size:11px;font-weight:500;white-space:nowrap;padding:4px 8px;border-radius:6px;
+  pointer-events:none;opacity:0;transition:opacity .12s,transform .12s;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.18)}
+.has-tip::before{content:'';position:absolute;bottom:calc(100% + 1px);left:50%;transform:translateX(-50%);
+  border:5px solid transparent;border-top-color:#1C2D5A;pointer-events:none;opacity:0;transition:opacity .12s;z-index:9999}
+.has-tip:hover::after{opacity:1;transform:translateX(-50%) scale(1)}
+.has-tip:hover::before{opacity:1}
 `;
 document.head.appendChild(_styleEl);

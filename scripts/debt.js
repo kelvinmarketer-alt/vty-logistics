@@ -48,7 +48,7 @@
       const ovLab = c.overdue === 0 ? '✓ Trong hạn' : c.overdue + ' ngày quá hạn';
       const ovBg = c.overdue > 60 ? 'var(--danger-bg)' : c.overdue > 30 ? 'var(--warn-bg)' : 'var(--ok-bg)';
       const ovFg = c.overdue > 60 ? 'var(--danger)' : c.overdue > 30 ? 'var(--warn)' : 'var(--ok)';
-      return `<tr>
+      return `<tr data-id="${c.id}" style="cursor:pointer" title="Bấm để xem chi tiết công nợ">
         <td>
           <div class="cust-cell">
             <div class="cust-ava" style="background:${col}">${window.initials(c.name)}</div>
@@ -75,6 +75,14 @@
       </tr>`;
     }).join('') || `<tr><td colspan="8" style="padding:40px;text-align:center;color:var(--muted)">Không có công nợ nào khớp lọc.</td></tr>`;
 
+    document.querySelectorAll('#debtTbody tr[data-id]').forEach(tr => {
+      tr.onclick = (e) => {
+        if (e.target.closest('button')) return;
+        const debtors = loadDebtors();
+        const c = debtors.find(x => x.id === tr.dataset.id);
+        if (c) openReminderHistory(c);
+      };
+    });
     document.querySelectorAll('#debtTbody button[data-action]').forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation();

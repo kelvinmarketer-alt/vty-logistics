@@ -53,9 +53,12 @@
     }).join('') || `<tr><td colspan="9" style="padding:40px;text-align:center;color:var(--muted)">Không có HĐ.</td></tr>`;
 
     document.querySelectorAll('#invTbody tr[data-no]').forEach(tr => {
+      tr.style.cursor = 'pointer';
+      tr.title = 'Bấm để xem hóa đơn';
       tr.onclick = (e) => {
         if (e.target.closest('button')) return;
-        window.toast('Mở HĐ ' + tr.dataset.no, 'info');
+        const inv = invoices.find(x => x.no === tr.dataset.no);
+        if (inv) window.printInvoice(inv);
       };
     });
     document.querySelectorAll('#invTbody button[data-act]').forEach(btn => {
@@ -102,7 +105,8 @@
   /* === Form tạo HĐ === */
   window.formHd = function() {
     const custs = window.STORE.get('customers', []).filter(c => c.type === 'B2B');
-    const custOpts = custs.map(c => `<option value="${c.id}" data-tax="${c.tax||''}">${c.name}</option>`).join('');
+    const custOpts = custs.map(c =>
+      `<option value="${c.name}">${(c.code||c.id)} · ${c.phone||''}</option>`).join('');
     const nextNo = '(nháp)';
     return `
       <div class="form-row">
@@ -110,11 +114,10 @@
         <div><label>Ngày *</label><input id="hDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
       </div>
       <div class="form-row">
-        <div><label>Khách hàng *</label>
-          <select id="hCust" onchange="window.onHCustChange(this)">
-            <option value="">-- Chọn KH B2B --</option>
-            ${custOpts}
-          </select></div>
+        <div><label>Khách hàng * (gõ để tìm — gợi ý tự động)</label>
+          <input id="hCust" list="hCustList" autocomplete="off" placeholder="Gõ tên / mã / SĐT khách B2B…"
+                 onchange="window.onHCustChange(this)" onblur="window.onHCustChange(this)">
+          <datalist id="hCustList">${custOpts}</datalist></div>
         <div><label>MST</label><input id="hTax" placeholder="2300xxxxxx"></div>
       </div>
       <div class="form-row wide"><label>Diễn giải *</label>
@@ -134,10 +137,17 @@
     `;
   };
 
-  window.onHCustChange = function(sel) {
-    const opt = sel.options[sel.selectedIndex];
-    const tax = opt?.dataset.tax || '';
-    document.getElementById('hTax').value = tax;
+  window.onHCustChange = function(el) {
+    const text = (el.value || '').trim();
+    const c = window.resolveCust ? window.resolveCust(text) : null;
+    if (c) {
+      el.dataset.custId = c.id;
+      el.value = c.name;
+      const taxEl = document.getElementById('hTax');
+      if (taxEl && c.tax && !taxEl.value) taxEl.value = c.tax;
+    } else {
+      delete el.dataset.custId;
+    }
   };
   window.recalcVAT = function() {
     const net = parseInt(window.formVal('#hNet'), 10) || 0;
@@ -155,10 +165,14 @@
 
   window.submitInvoice = function(status) {
     const custEl = document.getElementById('hCust');
-    const custName = custEl.options[custEl.selectedIndex]?.text || '';
+    const custText = (custEl.value || '').trim();
+    const custMatch = custEl.dataset.custId
+      ? window.STORE.get('customers', []).find(c => c.id === custEl.dataset.custId)
+      : (window.resolveCust ? window.resolveCust(custText) : null);
+    const custName = custMatch ? custMatch.name : custText;
     const net = parseInt(window.formVal('#hNet'), 10) || 0;
     const desc = window.formVal('#hDesc');
-    if (!custEl.value) { window.toast('Chọn khách hàng', 'warn'); return; }
+    if (!custText) { window.toast('Nhập khách hàng', 'warn'); return; }
     if (!net) { window.toast('Nhập tiền hàng', 'warn'); return; }
     if (!desc) { window.toast('Nhập diễn giải', 'warn'); return; }
 

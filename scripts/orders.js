@@ -231,10 +231,14 @@
     document.getElementById('dMode').textContent = tm ? tm.label : '—';
 
     document.getElementById('iCode').textContent  = o.code;
-    const custSelOpts = `<option value="">— Chọn KH —</option>` + customers.map(c =>
-      `<option value="${c.id}"${c.id===o.cust?' selected':''}>${(c.code||c.id)} · ${c.name}</option>`).join('');
     document.getElementById('iCust').innerHTML =
-      `<select title="Đổi khách hàng" onchange="window.onDrawerCustChange('${o.code}', this.value)" style="font:inherit;padding:2px 4px;max-width:100%">${custSelOpts}</select>`;
+      window.custInputHTML('iCustInput', o.custName || '', 'Gõ tên / mã / SĐT khách…');
+    const _iCustEl = document.getElementById('iCustInput');
+    if (_iCustEl) {
+      _iCustEl.title = 'Đổi khách hàng — gõ để tìm';
+      if (o.cust) _iCustEl.dataset.custId = o.cust;
+      window.bindCustField('iCustInput', (c) => { if (c) window.onDrawerCustChange(o.code, c.id); });
+    }
     document.getElementById('iStaff').textContent = o.staff;
     document.getElementById('iDate').textContent  = o.date;
     if (Array.isArray(o.items) && o.items.length) {
@@ -400,8 +404,7 @@
     const svcOpts = window.MD.options('services');
     const tmOpts = window.MD.options('transportModes');
     const payOpts = window.MD.get('payMethods').map(p => `<option>${p.label}</option>`).join('');
-    const custOpts = `<option value="">-- Chọn KH --</option>` +
-      customers.map(c => `<option value="${c.id}" ${c.id===prefillCustId?'selected':''}>${c.code} · ${c.name}</option>`).join('');
+    const prefillCust = prefillCustId ? customers.find(c => c.id === prefillCustId) : null;
     const drvOpts = `<option value="">-- Chọn tài xế --</option>` +
       drivers.map(d => `<option value="${d.id}">${d.name} · ${d.primaryPlate}</option>`).join('');
     const vehOpts = `<option value="">-- Chọn xe --</option>` +
@@ -418,7 +421,7 @@
       </div>
       <div class="form-row">
         <div><label>Mã đơn</label><input id="oCode" value="${nextCode}" readonly style="background:#FAFAFB;font-family:ui-monospace,monospace;font-weight:600"></div>
-        <div><label>Khách hàng (tài khoản)</label><select id="oCust" onchange="window.onPickCustomer(this.value)">${custOpts}</select></div>
+        <div><label>Khách hàng (gõ để tìm — gợi ý tự động)</label>${window.custInputHTML('oCust', prefillCust ? prefillCust.name : '', 'Gõ tên / mã / SĐT khách…')}</div>
       </div>
       <div class="form-row">
         <div><label>Trạng thái đơn</label><select id="oStatus">${statusOpts}</select></div>
@@ -551,7 +554,9 @@
     });
     renderItemsTable();
     window.onChangeService(document.getElementById('oSvc').value);
-    if (prefillCustId) window.onPickCustomer(prefillCustId);
+    /* Autocomplete KH: khi chọn → tự điền người gửi từ hồ sơ KH */
+    window.bindCustField('oCust', (c) => { if (c) window.fillSenderFromCust(c); });
+    if (prefillCust) { document.getElementById('oCust').dataset.custId = prefillCust.id; window.fillSenderFromCust(prefillCust); }
     /* Auto-tính lợi nhuận khi thay đổi giá */
     ['oFreight','oPartnerCost'].forEach(id => {
       document.getElementById(id)?.addEventListener('input', updateProfit);
@@ -559,14 +564,18 @@
   };
 
   /* Khi chọn KH → auto điền người gửi từ hồ sơ KH */
-  window.onPickCustomer = function(custId) {
-    if (!custId) return;
-    const c = window.STORE.get('customers', []).find(x => x.id === custId);
+  window.fillSenderFromCust = function(c) {
     if (!c) return;
     const setIf = (id, val) => { const el = document.getElementById(id); if (el && !el.value && val) el.value = val; };
     setIf('oSenderName', c.name);
     setIf('oSenderPhone', c.phone);
     setIf('oPickup', c.address);
+  };
+  /* Tương thích cũ: onPickCustomer(custId) */
+  window.onPickCustomer = function(custId) {
+    if (!custId) return;
+    const c = window.STORE.get('customers', []).find(x => x.id === custId);
+    window.fillSenderFromCust(c);
   };
 
   window.onCarrierChange = function(mode) {
@@ -662,14 +671,19 @@
 
   window.submitCreateOrder = function(initStatus) {
     const status = window.formVal('#oStatus') || initStatus || 'confirmed';
-    const custId = window.formVal('#oCust');
+    const custEl = document.getElementById('oCust');
+    const custText = (custEl?.value || '').trim();
+    /* Ưu tiên KH đã resolve (dataset), nếu chưa thì thử resolve theo text gõ vào */
+    let custMatch = custEl?.dataset.custId ? window.STORE.get('customers', []).find(c => c.id === custEl.dataset.custId) : null;
+    if (!custMatch && custText) custMatch = window.resolveCust(custText);
+    const custId = custMatch ? custMatch.id : '';
     const freight = parseInt(window.formVal('#oFreight'), 10) || 0;
     /* Lọc các dòng hàng có nhập diễn giải */
     const items = orderItems
       .filter(it => (it.desc || '').trim() || it.qty > 1 || it.price > 0)
       .map(it => ({ desc: (it.desc||'').trim(), unit: it.unit, qty: +it.qty||0, weight: +it.weight||0, price: +it.price||0, amount: (+it.qty||0)*(+it.price||0) }));
 
-    if (!custId) { window.toast('Chọn khách hàng', 'warn'); return; }
+    if (!custText) { window.toast('Nhập tên khách hàng', 'warn'); return; }
     if (!items.length) { window.toast('Nhập ít nhất 1 dòng hàng hóa', 'warn'); return; }
     if (!freight) { window.toast('Nhập cước vận chuyển', 'warn'); return; }
 
@@ -677,7 +691,7 @@
     const drivers = window.STORE.get('drivers', window.DRIVERS || []);
     const vehicles = window.STORE.get('vehicles', window.VEHICLES || []);
     const partners = window.STORE.get('partners', window.PARTNERS || []);
-    const cust = customers.find(c => c.id === custId);
+    const cust = custMatch || customers.find(c => c.id === custId);
     const carrierMode = document.querySelector('input[name="oCarrier"]:checked')?.value || 'internal';
 
     let driver = '—', driverName = '—', vehicle = '—';
@@ -724,7 +738,7 @@
       code: window.formVal('#oCode'),
       date: new Date().toLocaleString('vi-VN'),
       cust: custId,
-      custName: cust ? cust.name : '—',
+      custName: cust ? cust.name : custText,
       /* Người gửi / người nhận */
       senderName: window.formVal('#oSenderName') || (cust ? cust.name : ''),
       senderPhone: window.formVal('#oSenderPhone') || '',
