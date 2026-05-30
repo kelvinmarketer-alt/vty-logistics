@@ -187,9 +187,7 @@
 
   /* === DEBT REPORT === */
   function overdueDays(c) {
-    if (c.id === 'KH003') return 35;
-    if (c.id === 'KH008') return 65;
-    return 0;
+    return window.overdueDays(c);
   }
 
   function renderDebtReport() {

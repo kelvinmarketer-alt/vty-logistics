@@ -121,6 +121,28 @@ window.fmtShort = function(n) {
   return window.fmt(n);
 };
 
+/* ============ Date helpers ============ */
+/* Parse chuỗi ngày kiểu Việt Nam 'dd/mm/yyyy' → Date (null nếu sai) */
+window.parseVNDate = function(s) {
+  if (!s || typeof s !== 'string') return null;
+  const m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!m) return null;
+  const d = new Date(+m[3], +m[2] - 1, +m[1]);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+/* Số ngày quá hạn công nợ THẬT.
+   - KH không có nợ quá hạn (debtOverdue<=0) → 0 (trong hạn)
+   - Còn lại: số ngày tính từ đơn gần nhất, trừ hạn thanh toán 30 ngày */
+window.DEBT_TERM_DAYS = 30;
+window.overdueDays = function(c) {
+  if (!c || !(c.debtOverdue > 0)) return 0;
+  const d = window.parseVNDate(c.lastContact || c.lastOrder);
+  if (!d) return 0;
+  const elapsed = Math.floor((Date.now() - d.getTime()) / 86_400_000);
+  return Math.max(0, elapsed - window.DEBT_TERM_DAYS);
+};
+
 window.initials = function(name) {
   return name
     .replace(/Cty\s+(TNHH|CP|CỔ PHẦN)\s+/i, '')

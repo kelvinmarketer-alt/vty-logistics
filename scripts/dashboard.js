@@ -165,7 +165,10 @@
     if (subEl) {
       const transit = window.STORE.get('orders', []).filter(o => o.status === 'transit').length;
       const overdueAlerts = window.STORE.get('customers', []).filter(c => c.debtOverdue > 0).length;
-      subEl.innerHTML = `Hôm nay <b>thứ Chủ Nhật, 17/05/2026</b> · Có <b>${k.todayOrders} đơn mới</b>, <b>${transit} đơn đang giao</b>, <b>${overdueAlerts} cảnh báo</b>`;
+      const now = new Date();
+      const wd = ['Chủ Nhật','thứ Hai','thứ Ba','thứ Tư','thứ Năm','thứ Sáu','thứ Bảy'][now.getDay()];
+      const today = `${wd}, ${now.toLocaleDateString('vi-VN')}`;
+      subEl.innerHTML = `Hôm nay <b>${today}</b> · Có <b>${k.todayOrders} đơn mới</b>, <b>${transit} đơn đang giao</b>, <b>${overdueAlerts} cảnh báo</b>`;
     }
   }, 100);
 })();
