@@ -76,6 +76,8 @@
       </div>
       <div class="head-actions">
         <button class="btn btn-ghost" onclick="window.toast('Xem lịch đăng kiểm cả tháng','info')">📅 Lịch đăng kiểm</button>
+        <button class="btn btn-ghost" onclick="window.openBulkImport('vehicles')">📥 Nhập xe</button>
+        <button class="btn btn-ghost" onclick="window.openBulkImport('partners')">📥 Nhập đối tác</button>
         <button class="btn btn-primary" onclick="window.openAddVehicle()">+ Thêm xe / tài xế</button>
       </div>
     </div>
@@ -303,6 +305,7 @@
 <script src="../scripts/supabase-client.js"></script>
 <script src="../scripts/shared.js"></script>
 <script src="../scripts/store.js"></script>
+<script src="../scripts/bulk-import.js"></script>
 <script src="../scripts/auth.js"></script>
 <script>if(window.AUTH) window.AUTH.requireAuth();</script>
 <script src="../data/fleet.js"></script>

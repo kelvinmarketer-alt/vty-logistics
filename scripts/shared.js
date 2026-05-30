@@ -411,7 +411,7 @@ window.openModal = function(title, bodyHTML, opts = {}) {
   if (existing) existing.remove();
   const html = `
     <div id="modal-bg" class="modal-bg open" onclick="if(event.target===this)window.closeModal()">
-      <div class="modal" style="max-width:${opts.width||'520px'}">
+      <div class="modal" style="max-width:${opts.width||'520px'}${opts.width?`;width:${opts.width}`:''}">
         <div class="modal-head">
           <h3>${title}</h3>
           <button class="modal-close" onclick="window.closeModal()">✕</button>

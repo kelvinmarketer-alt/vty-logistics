@@ -40,3 +40,14 @@ if (window.SUPABASE_CONFIG.isReady()) {
 } else {
   console.log('[VTY] localStorage mode (Supabase chưa cấu hình)');
 }
+
+/* An toàn: chạy local (localhost / mở file trực tiếp) luôn ép localStorage,
+   tránh test ghi nhầm vào DB production. Chỉ domain thật mới sync cloud. */
+(function () {
+  const h = location.hostname;
+  const isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || location.protocol === 'file:';
+  if (isLocal && window.SUPABASE_CONFIG.mode === 'supabase') {
+    window.SUPABASE_CONFIG.mode = 'localStorage';
+    console.warn('[VTY] LOCAL detected → ép localStorage mode (không đụng cloud production)');
+  }
+})();

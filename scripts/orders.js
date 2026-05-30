@@ -70,7 +70,9 @@
     }
 
     document.getElementById('tbody').innerHTML = rows.map(o => {
-      const st = STATUS[o.status];
+      const st = STATUS[o.status] || STATUS.confirmed;
+      const stOpts = Object.keys(STATUS).map(k =>
+        `<option value="${k}"${k===o.status?' selected':''}>${STATUS[k].icon} ${STATUS[k].label}</option>`).join('');
       const svc = SVC[o.serviceType] || {icon:'❓', label:o.serviceType, color:'#666'};
       const tm = o.transportMode ? TM[o.transportMode] : null;
       return `<tr data-code="${o.code}">
@@ -93,7 +95,9 @@
           <div>${o.driverName}${o.external?' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>':''}</div>
           <div style="color:var(--muted);font-size:11px">${o.vehicle}${o.external && o.partnerCost?' · '+window.fmtShort(o.partnerCost)+'đ':''}</div>
         </td>
-        <td><span class="status-pill st-${o.status}">${st.icon} ${st.label}</span></td>
+        <td onclick="event.stopPropagation()">
+          <select class="status-pill st-${o.status}" title="Đổi trạng thái" onchange="window.onRowStatusChange('${o.code}', this.value)" style="border:0;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;padding:3px 6px;border-radius:999px">${stOpts}</select>
+        </td>
         <td onclick="event.stopPropagation()">
           <div class="row-actions">
             <button title="Chuyển trạng thái kế tiếp" data-act="next" data-code="${o.code}" ${o.status==='reconciled'||o.status==='cancelled'?'disabled':''}>▶</button>
@@ -148,28 +152,50 @@
   });
 
   /* === Status flow === */
+  /* Đổi trạng thái (dùng chung cho nút ▶, dropdown list, dropdown drawer).
+     Giữ logic cộng doanh thu KH khi chuyển sang "đã giao" + chống cộng trùng. */
+  function applyStatusChange(code, newStatus) {
+    const o = orders.find(x => x.code === code);
+    if (!o || !STATUS[newStatus] || o.status === newStatus) return;
+    const prev = o.status;
+    window.STORE.update('orders', code, { status: newStatus });
+    if (newStatus === 'delivered' && prev !== 'delivered' && o.cust) {
+      const c = window.STORE.get('customers', []).find(x => x.id === o.cust);
+      if (c) window.STORE.update('customers', o.cust, {
+        orders: (c.orders || 0) + 1,
+        revenue: (c.revenue || 0) + (o.freight || 0),
+        lastOrder: new Date().toLocaleDateString('vi-VN'),
+      });
+    }
+    window.toast(`${code}: ${STATUS[prev].label} → ${STATUS[newStatus].label}`, 'success');
+  }
+
   function advanceStatus(code) {
     const o = orders.find(x => x.code === code);
     if (!o) return;
     const i = STEPS.indexOf(o.status);
     if (i < 0 || i >= STEPS.length - 1) return;
-    const nextStatus = STEPS[i + 1];
-    window.STORE.update('orders', code, { status: nextStatus });
-    window.toast(`${code}: ${STATUS[o.status].label} → ${STATUS[nextStatus].label}`, 'success');
-
-    /* Khi delivered → cộng doanh thu cho customer */
-    if (nextStatus === 'delivered' && o.cust) {
-      const customers = window.STORE.get('customers', []);
-      const c = customers.find(x => x.id === o.cust);
-      if (c) {
-        window.STORE.update('customers', o.cust, {
-          orders: (c.orders || 0) + 1,
-          revenue: (c.revenue || 0) + (o.freight || 0),
-          lastOrder: new Date().toLocaleDateString('vi-VN'),
-        });
-      }
-    }
+    applyStatusChange(code, STEPS[i + 1]);
   }
+
+  /* Dropdown trạng thái inline trên bảng list */
+  window.onRowStatusChange = function(code, val) { applyStatusChange(code, val); };
+
+  /* Dropdown trạng thái trong drawer */
+  window.onDrawerStatusChange = function(code, val) {
+    if (val === 'cancelled') { cancelOrder(code); return; }
+    applyStatusChange(code, val);
+    openOrder(code);
+  };
+
+  /* Dropdown đổi khách hàng trong drawer */
+  window.onDrawerCustChange = function(code, custId) {
+    const c = window.STORE.get('customers', []).find(x => x.id === custId);
+    if (!c) return;
+    window.STORE.update('orders', code, { cust: c.id, custName: c.name });
+    window.toast(`${code}: đổi KH → ${c.name}`, 'success');
+    openOrder(code);
+  };
 
   function cancelOrder(code) {
     window.confirmDelete('Hủy đơn ' + code + '?', () => {
@@ -184,11 +210,14 @@
     if (!o) return;
     const svc = SVC[o.serviceType] || {icon:'❓', label:o.serviceType, color:'#666'};
     const tm = o.transportMode ? TM[o.transportMode] : null;
-    const st = STATUS[o.status];
+    const st = STATUS[o.status] || STATUS.confirmed;
+    const customers = window.STORE.get('customers', []);
+    const stSelOpts = Object.keys(STATUS).map(k =>
+      `<option value="${k}"${k===o.status?' selected':''}>${STATUS[k].icon} ${STATUS[k].label}</option>`).join('');
 
     document.getElementById('dCode').textContent = o.code;
     document.getElementById('dMeta').innerHTML = `
-      <span class="status-pill st-${o.status}">${st.icon} ${st.label}</span>
+      <select class="status-pill st-${o.status}" title="Đổi trạng thái" onchange="window.onDrawerStatusChange('${o.code}', this.value)" style="border:0;font:inherit;font-weight:600;cursor:pointer;padding:3px 8px;border-radius:999px">${stSelOpts}</select>
       <span class="svc-tag" style="background:${svc.color}20;color:${svc.color}">${svc.icon} ${svc.label}</span>
       ${tm ? `<span class="tm-tag">${tm.icon} ${tm.label}</span>` : ''}
       <span>· ${o.date}</span>
@@ -202,12 +231,34 @@
     document.getElementById('dMode').textContent = tm ? tm.label : '—';
 
     document.getElementById('iCode').textContent  = o.code;
-    document.getElementById('iCust').textContent  = o.custName + ' (' + o.cust + ')';
+    const custSelOpts = `<option value="">— Chọn KH —</option>` + customers.map(c =>
+      `<option value="${c.id}"${c.id===o.cust?' selected':''}>${(c.code||c.id)} · ${c.name}</option>`).join('');
+    document.getElementById('iCust').innerHTML =
+      `<select title="Đổi khách hàng" onchange="window.onDrawerCustChange('${o.code}', this.value)" style="font:inherit;padding:2px 4px;max-width:100%">${custSelOpts}</select>`;
     document.getElementById('iStaff').textContent = o.staff;
     document.getElementById('iDate').textContent  = o.date;
-    document.getElementById('iGoods').textContent = `${o.qty} ${o.unit.toLowerCase()} · ${o.goods}` + (o.weight ? ' · ' + o.weight + ' kg' : '');
-    document.getElementById('iPickup').textContent = o.pickup;
-    document.getElementById('iDrop').textContent   = o.drop;
+    if (Array.isArray(o.items) && o.items.length) {
+      document.getElementById('iGoods').innerHTML =
+        `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:2px">
+           <thead><tr style="color:var(--muted);font-size:10.5px;text-transform:uppercase">
+             <th style="text-align:left;padding:2px 4px">Hàng</th><th style="padding:2px 4px">SL</th>
+             <th style="padding:2px 4px">TL</th><th style="text-align:right;padding:2px 4px">Thành tiền</th>
+           </tr></thead><tbody>` +
+        o.items.map(it => `<tr>
+           <td style="padding:2px 4px">${it.desc || '—'} <span style="color:var(--muted)">(${(it.unit||'').toLowerCase()})</span></td>
+           <td style="text-align:center;padding:2px 4px">${it.qty}</td>
+           <td style="text-align:center;padding:2px 4px">${it.weight||0}kg</td>
+           <td style="text-align:right;padding:2px 4px">${window.fmt(it.amount||0)}</td>
+         </tr>`).join('') +
+        `</tbody></table>` +
+        (o.goodsValue ? `<div style="text-align:right;margin-top:4px;font-size:11.5px;color:var(--muted)">Giá trị hàng: <b>${window.fmtVND(o.goodsValue)}</b></div>` : '');
+    } else {
+      document.getElementById('iGoods').textContent = `${o.qty} ${o.unit.toLowerCase()} · ${o.goods}` + (o.weight ? ' · ' + o.weight + ' kg' : '');
+    }
+    const senderTxt = o.senderName ? `${o.senderName}${o.senderPhone?' · '+o.senderPhone:''} — ` : '';
+    const recvTxt   = o.receiverName ? `${o.receiverName}${o.receiverPhone?' · '+o.receiverPhone:''} — ` : '';
+    document.getElementById('iPickup').textContent = senderTxt + o.pickup;
+    document.getElementById('iDrop').textContent   = recvTxt + o.drop;
     document.getElementById('iPayBy').textContent  = o.payBy;
     document.getElementById('iTotal').textContent  = window.fmtVND(o.freight + (o.cod||0));
     document.getElementById('iNote').textContent   = o.note || '(không có)';
@@ -255,15 +306,95 @@
     window.openDrawerBg();
   };
 
-  /* === Create order modal === */
+  /* === State bảng hàng hóa nhiều dòng === */
+  let orderItems = [];
+  function blankItem() { return { desc:'', unit:'Thùng', qty:1, weight:0, price:0 }; }
+
+  function itemsTableHtml() {
+    const unitOptHtml = (sel) => window.MD.get('units')
+      .map(u => `<option ${u.label===sel?'selected':''}>${u.label}</option>`).join('');
+    const inS = 'width:100%;box-sizing:border-box;padding:5px 6px';
+    const rows = orderItems.map((it, i) => `
+      <tr data-i="${i}">
+        <td style="text-align:center;color:var(--muted)">${i+1}</td>
+        <td><input class="it-desc" style="${inS}" value="${(it.desc||'').replace(/"/g,'&quot;')}" placeholder="Tên / diễn giải hàng"></td>
+        <td><select class="it-unit" style="${inS}">${unitOptHtml(it.unit)}</select></td>
+        <td><input class="it-qty" type="number" min="0" value="${it.qty}" style="${inS};text-align:right"></td>
+        <td><input class="it-weight" type="number" min="0" value="${it.weight}" style="${inS};text-align:right"></td>
+        <td><input class="it-price" type="number" min="0" value="${it.price}" style="${inS};text-align:right"></td>
+        <td class="num it-amount" style="font-weight:600;text-align:right;padding-right:6px">${window.fmt(it.qty*it.price)}</td>
+        <td style="text-align:center"><button type="button" class="btn btn-sm btn-ghost" onclick="window.orderDelItem(${i})" style="color:var(--danger);padding:2px 6px" ${orderItems.length<=1?'disabled':''}>✕</button></td>
+      </tr>`).join('');
+    return `
+      <table class="items-tbl" style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px">
+        <colgroup>
+          <col style="width:30px"><col><col style="width:84px"><col style="width:64px">
+          <col style="width:72px"><col style="width:104px"><col style="width:100px"><col style="width:32px">
+        </colgroup>
+        <thead><tr style="background:#F3F4F6;color:var(--muted);font-size:10.5px;text-transform:uppercase">
+          <th style="padding:6px 2px">STT</th>
+          <th style="padding:6px 4px;text-align:left">Diễn giải</th>
+          <th style="padding:6px 2px">ĐVT</th>
+          <th style="padding:6px 2px;text-align:right">SL</th>
+          <th style="padding:6px 2px;text-align:right">TL kg</th>
+          <th style="padding:6px 2px;text-align:right">Đơn giá</th>
+          <th style="padding:6px 2px;text-align:right">Thành tiền</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="itemsBody">${rows}</tbody>
+      </table>`;
+  }
+
+  function bindItemRows() {
+    const body = document.getElementById('itemsBody');
+    if (!body) return;
+    body.querySelectorAll('tr[data-i]').forEach(tr => {
+      const i = +tr.dataset.i;
+      tr.querySelector('.it-desc').oninput   = e => { orderItems[i].desc = e.target.value; };
+      tr.querySelector('.it-unit').onchange  = e => { orderItems[i].unit = e.target.value; };
+      tr.querySelector('.it-qty').oninput    = e => { orderItems[i].qty = +e.target.value||0; window.orderRecalc(); };
+      tr.querySelector('.it-weight').oninput = e => { orderItems[i].weight = +e.target.value||0; window.orderRecalc(); };
+      tr.querySelector('.it-price').oninput  = e => { orderItems[i].price = +e.target.value||0; window.orderRecalc(); };
+    });
+  }
+
+  function renderItemsTable() {
+    const wrap = document.getElementById('itemsWrap');
+    if (!wrap) return;
+    wrap.innerHTML = itemsTableHtml();
+    bindItemRows();
+    window.orderRecalc();
+  }
+
+  window.orderAddItem = function() { orderItems.push(blankItem()); renderItemsTable(); };
+  window.orderDelItem = function(i) {
+    if (orderItems.length <= 1) return;
+    orderItems.splice(i, 1); renderItemsTable();
+  };
+  window.orderRecalc = function() {
+    let totAmount = 0, totQty = 0, totWeight = 0;
+    orderItems.forEach((it, i) => {
+      const amt = (it.qty||0) * (it.price||0);
+      totAmount += amt; totQty += (it.qty||0); totWeight += (it.weight||0);
+      const cell = document.querySelector(`#itemsBody tr[data-i="${i}"] .it-amount`);
+      if (cell) cell.textContent = window.fmt(amt);
+    });
+    const sum = document.getElementById('itemsTotal');
+    if (sum) sum.textContent = window.fmt(totAmount) + ' ₫';
+    const gv = document.getElementById('oGoodsValue');
+    if (gv) gv.value = totAmount;
+    updateProfit();
+  };
+
+  /* === Create order modal — mẫu HÓA ĐƠN GỬI HÀNG === */
   window.openCreateOrder = function(prefillCustId) {
+    orderItems = [blankItem()];
     const customers = window.STORE.get('customers', []);
     const drivers = window.STORE.get('drivers', window.DRIVERS || []);
     const vehicles = window.STORE.get('vehicles', window.VEHICLES || []);
     const partners = window.STORE.get('partners', window.PARTNERS || []).filter(p => p.active);
     const svcOpts = window.MD.options('services');
     const tmOpts = window.MD.options('transportModes');
-    const unitOpts = window.MD.options('units');
     const payOpts = window.MD.get('payMethods').map(p => `<option>${p.label}</option>`).join('');
     const custOpts = `<option value="">-- Chọn KH --</option>` +
       customers.map(c => `<option value="${c.id}" ${c.id===prefillCustId?'selected':''}>${c.code} · ${c.name}</option>`).join('');
@@ -273,55 +404,91 @@
       vehicles.map(v => `<option value="${v.id}">${v.plate} · ${v.type}</option>`).join('');
     const partnerOpts = `<option value="">-- Chọn đối tác --</option>` +
       partners.map(p => `<option value="${p.id}">${p.code} · ${p.name}${p.vehiclePlate?' · '+p.vehiclePlate:''}</option>`).join('');
+    const statusOpts = STEPS.map(s => `<option value="${s}"${s==='confirmed'?' selected':''}>${STATUS[s].icon} ${STATUS[s].label}</option>`).join('');
     const nextCode = window.STORE.nextOrderCode();
+    const today = new Date().toISOString().slice(0,10);
 
-    window.openModal('+ Tạo đơn mới', `
+    window.openModal('🧾 Tạo đơn — Hóa đơn gửi hàng', `
       <div style="margin-bottom:14px;padding:10px 12px;background:#F3E8FF;border:1px solid #E9D5FF;border-radius:8px;font-size:12px;color:#7C3AED">
         💡 <b>Mã đơn tự sinh:</b> <b>${nextCode}</b>
       </div>
       <div class="form-row">
         <div><label>Mã đơn</label><input id="oCode" value="${nextCode}" readonly style="background:#FAFAFB;font-family:ui-monospace,monospace;font-weight:600"></div>
-        <div><label>NV phụ trách</label>
-          <select id="oStaff">
-            <option>Trần Lan</option><option>Phạm Hùng</option>
-            <option>Hoàng Mai</option><option>Vương Luân</option>
-          </select></div>
+        <div><label>Khách hàng (tài khoản)</label><select id="oCust" onchange="window.onPickCustomer(this.value)">${custOpts}</select></div>
       </div>
       <div class="form-row">
-        <div><label>Khách hàng *</label><select id="oCust">${custOpts}</select></div>
-        <div><label>Loại dịch vụ *</label>
-          <select id="oSvc" onchange="window.onChangeService(this.value)">${svcOpts}</select></div>
-      </div>
-      <div class="form-row" id="modeWrap">
-        <div><label>Phương thức vận chuyển *</label>
-          <select id="oMode">${tmOpts}</select></div>
-        <div></div>
-      </div>
-      <div class="form-row">
-        <div><label>📍 Lấy hàng</label><input id="oPickup" placeholder="Địa chỉ lấy hàng"></div>
-        <div><label>🎯 Giao đến</label><input id="oDrop" placeholder="Địa chỉ giao"></div>
-      </div>
-      <div class="form-row">
-        <div><label>Hàng hóa *</label><input id="oGoods" placeholder="VD: 5 thùng giấy A4"></div>
-        <div><label>Trọng lượng (kg)</label><input id="oWeight" type="number" placeholder="25"></div>
-      </div>
-      <div class="form-row">
-        <div><label>Số lượng</label><input id="oQty" type="number" value="1"></div>
-        <div><label>Đơn vị</label>
-          <select id="oUnit">${window.MD.get('units').map(u=>`<option>${u.label}</option>`).join('')}</select></div>
-      </div>
-      <div class="form-row">
-        <div><label>Cước thu KH (₫) *</label><input id="oFreight" type="number" placeholder="0"></div>
-        <div><label>COD / Thu hộ (₫)</label><input id="oCod" type="number" placeholder="0"></div>
-      </div>
-      <div class="form-row">
-        <div><label>Hình thức TT</label>
-          <select id="oPayBy">${payOpts}</select></div>
+        <div><label>Trạng thái đơn</label><select id="oStatus">${statusOpts}</select></div>
         <div></div>
       </div>
 
+      <!-- ============ NGƯỜI GỬI / NGƯỜI NHẬN ============ -->
+      <div class="section-h" style="margin:14px 0 8px">📤 Người gửi</div>
+      <div class="form-row">
+        <div><label>Tên người gửi *</label><input id="oSenderName" placeholder="Họ tên / công ty gửi"></div>
+        <div><label>SĐT gửi</label><input id="oSenderPhone" placeholder="09xx xxx xxx"></div>
+      </div>
+      <div class="form-row wide"><label>📍 Địa chỉ gửi (lấy hàng)</label><input id="oPickup" placeholder="Số nhà, đường, quận, tỉnh"></div>
+
+      <div class="section-h" style="margin:14px 0 8px">📥 Người nhận</div>
+      <div class="form-row">
+        <div><label>Tên người nhận *</label><input id="oReceiverName" placeholder="Họ tên / công ty nhận"></div>
+        <div><label>SĐT nhận</label><input id="oReceiverPhone" placeholder="09xx xxx xxx"></div>
+      </div>
+      <div class="form-row wide"><label>🎯 Địa chỉ nhận (giao hàng)</label><input id="oDrop" placeholder="Số nhà, đường, quận, tỉnh"></div>
+      <div class="form-row">
+        <div><label>Nơi giao hàng</label><input id="oDeliveryPlace" placeholder="VD: Kho HN / Bến xe Giáp Bát"></div>
+        <div><label>Ngày giao</label><input id="oDeliveryDate" type="date" value="${today}"></div>
+      </div>
+
+      <!-- ============ DỊCH VỤ ============ -->
+      <div class="form-row">
+        <div><label>Loại dịch vụ *</label>
+          <select id="oSvc" onchange="window.onChangeService(this.value)">${svcOpts}</select></div>
+        <div id="modeWrap"><label>Phương thức vận chuyển</label>
+          <select id="oMode">${tmOpts}</select></div>
+      </div>
+      <div class="form-row">
+        <div><label>Tuyến đường</label><input id="oRoute" placeholder="VD: Hà Nội → Hải Phòng"></div>
+        <div><label>Loại hàng</label><input id="oCargoType" placeholder="VD: Hàng khô / dễ vỡ"></div>
+      </div>
+
+      <!-- ============ BẢNG HÀNG HÓA ============ -->
+      <div class="section-h" style="margin:16px 0 8px;display:flex;justify-content:space-between;align-items:center">
+        <span>📦 Chi tiết hàng hóa</span>
+        <button type="button" class="btn btn-sm btn-primary" onclick="window.orderAddItem()">+ Thêm dòng</button>
+      </div>
+      <div id="itemsWrap" style="overflow-x:auto;border:1px solid var(--line,#E5E7EB);border-radius:8px;padding:4px"></div>
+      <div style="text-align:right;margin:8px 2px 0;font-size:13px">
+        Tổng tiền hàng: <b id="itemsTotal" style="color:var(--navy);font-size:15px">0 ₫</b>
+      </div>
+      <input id="oGoodsValue" type="hidden" value="0">
+
+      <!-- ============ TIỀN / THANH TOÁN ============ -->
+      <div class="section-h" style="margin:16px 0 8px">💰 Cước & thanh toán</div>
+      <div class="form-row">
+        <div><label>Cước vận chuyển (₫) *</label><input id="oFreight" type="number" placeholder="0"></div>
+        <div><label>Thu tiền hàng / COD (₫)</label><input id="oCod" type="number" placeholder="0"></div>
+      </div>
+      <div class="form-row">
+        <div><label>Tiền trung chuyển (₫)</label><input id="oTransferFee" type="number" placeholder="0"></div>
+        <div><label>Tiền đã trả (₫)</label><input id="oPaidAmount" type="number" placeholder="0"></div>
+      </div>
+      <div class="form-row">
+        <div><label>Hình thức thanh toán</label>
+          <select id="oPayBy">${payOpts}</select></div>
+        <div><label>Hình thức nhận hàng</label>
+          <select id="oReceiveMethod">
+            <option>Nhận tại kho</option><option>Giao tận nơi</option>
+            <option>Nhận tại bến</option><option>Khác</option>
+          </select></div>
+      </div>
+      <div class="form-row">
+        <div><label>Giấy tờ khác kèm theo</label><input id="oOtherDocs" placeholder="VD: hóa đơn đỏ, hợp đồng"></div>
+        <div><label>Số thứ tự xếp xe</label><input id="oLoadOrder" placeholder="VD: 12"></div>
+      </div>
+
       <!-- ============ PHÂN CÔNG XE / TÀI XẾ ============ -->
-      <div class="section-h" style="margin:14px 0 8px">🚚 Phân công vận chuyển</div>
+      <div class="section-h" style="margin:14px 0 8px">🚚 Phân công vận chuyển (xe đi)</div>
       <div class="check-grid cols-2" style="margin-bottom:12px">
         <label class="check-item" style="font-weight:600">
           <input type="radio" name="oCarrier" value="internal" checked onchange="window.onCarrierChange('internal')" style="accent-color:var(--navy)">
@@ -357,18 +524,45 @@
         </div>
       </div>
 
+      <!-- ============ KHÁC ============ -->
+      <div class="section-h" style="margin:14px 0 8px">📝 Khác</div>
+      <div class="form-row">
+        <div><label>Nhân viên KD phụ trách</label>
+          <select id="oStaff">
+            <option>Trần Lan</option><option>Phạm Hùng</option>
+            <option>Hoàng Mai</option><option>Vương Luân</option>
+          </select></div>
+        <div style="display:flex;align-items:flex-end;padding-bottom:8px">
+          <label class="check-item" style="font-weight:600">
+            <input type="checkbox" id="oPriority" style="accent-color:var(--red)">
+            <span>⭐ Đơn hàng ưu tiên</span>
+          </label>
+        </div>
+      </div>
       <div class="form-row wide"><label>Ghi chú</label><textarea id="oNote" rows="2" placeholder="Yêu cầu đặc biệt..."></textarea></div>
     `, {
       footer: `<button class="btn btn-ghost" onclick="closeModal()">Hủy</button>
-               <button class="btn btn-ghost" onclick="window.submitCreateOrder('draft')">💾 Lưu nháp</button>
-               <button class="btn btn-primary" onclick="window.submitCreateOrder('confirmed')">🚚 Tạo & gửi điều hành</button>`,
-      width:'620px'
+               <button class="btn btn-primary" onclick="window.submitCreateOrder()">🚚 Tạo đơn</button>`,
+      width:'760px'
     });
+    renderItemsTable();
     window.onChangeService(document.getElementById('oSvc').value);
+    if (prefillCustId) window.onPickCustomer(prefillCustId);
     /* Auto-tính lợi nhuận khi thay đổi giá */
     ['oFreight','oPartnerCost'].forEach(id => {
       document.getElementById(id)?.addEventListener('input', updateProfit);
     });
+  };
+
+  /* Khi chọn KH → auto điền người gửi từ hồ sơ KH */
+  window.onPickCustomer = function(custId) {
+    if (!custId) return;
+    const c = window.STORE.get('customers', []).find(x => x.id === custId);
+    if (!c) return;
+    const setIf = (id, val) => { const el = document.getElementById(id); if (el && !el.value && val) el.value = val; };
+    setIf('oSenderName', c.name);
+    setIf('oSenderPhone', c.phone);
+    setIf('oPickup', c.address);
   };
 
   window.onCarrierChange = function(mode) {
@@ -463,12 +657,17 @@
   };
 
   window.submitCreateOrder = function(initStatus) {
+    const status = window.formVal('#oStatus') || initStatus || 'confirmed';
     const custId = window.formVal('#oCust');
-    const goods = window.formVal('#oGoods');
     const freight = parseInt(window.formVal('#oFreight'), 10) || 0;
+    /* Lọc các dòng hàng có nhập diễn giải */
+    const items = orderItems
+      .filter(it => (it.desc || '').trim() || it.qty > 1 || it.price > 0)
+      .map(it => ({ desc: (it.desc||'').trim(), unit: it.unit, qty: +it.qty||0, weight: +it.weight||0, price: +it.price||0, amount: (+it.qty||0)*(+it.price||0) }));
+
     if (!custId) { window.toast('Chọn khách hàng', 'warn'); return; }
-    if (!goods) { window.toast('Nhập tên hàng hóa', 'warn'); return; }
-    if (!freight) { window.toast('Nhập cước', 'warn'); return; }
+    if (!items.length) { window.toast('Nhập ít nhất 1 dòng hàng hóa', 'warn'); return; }
+    if (!freight) { window.toast('Nhập cước vận chuyển', 'warn'); return; }
 
     const customers = window.STORE.get('customers', []);
     const drivers = window.STORE.get('drivers', window.DRIVERS || []);
@@ -508,27 +707,58 @@
       });
     }
 
+    /* Tổng hợp từ bảng hàng để giữ tương thích list/drawer cũ */
+    const totalQty = items.reduce((s, it) => s + it.qty, 0);
+    const totalWeight = items.reduce((s, it) => s + it.weight, 0);
+    const goodsValue = items.reduce((s, it) => s + it.amount, 0);
+    const goodsSummary = items.length === 1
+      ? `${items[0].qty} ${items[0].unit.toLowerCase()} ${items[0].desc}`.trim()
+      : `${items.length} mặt hàng (${totalQty} kiện)`;
+
     const svcId = window.formVal('#oSvc');
     const newOrder = {
       code: window.formVal('#oCode'),
       date: new Date().toLocaleString('vi-VN'),
       cust: custId,
       custName: cust ? cust.name : '—',
+      /* Người gửi / người nhận */
+      senderName: window.formVal('#oSenderName') || (cust ? cust.name : ''),
+      senderPhone: window.formVal('#oSenderPhone') || '',
+      senderAddress: window.formVal('#oPickup') || '',
+      receiverName: window.formVal('#oReceiverName') || '',
+      receiverPhone: window.formVal('#oReceiverPhone') || '',
+      receiverAddress: window.formVal('#oDrop') || '',
+      deliveryPlace: window.formVal('#oDeliveryPlace') || '',
+      deliveryDate: window.formVal('#oDeliveryDate') || '',
       serviceType: svcId,
       transportMode: svcId === 'lien-tinh' ? window.formVal('#oMode') : null,
+      route: window.formVal('#oRoute') || '',
+      cargoType: window.formVal('#oCargoType') || '',
       pickup: window.formVal('#oPickup') || '—',
       drop: window.formVal('#oDrop') || '—',
-      goods,
-      qty: parseInt(window.formVal('#oQty'), 10) || 1,
-      weight: parseInt(window.formVal('#oWeight'), 10) || 0,
-      unit: window.formVal('#oUnit') || 'Thùng',
+      /* Hàng hóa */
+      items,
+      goods: goodsSummary,
+      qty: totalQty || 1,
+      weight: totalWeight,
+      unit: items[0] ? items[0].unit : 'Thùng',
+      goodsValue,
+      /* Tiền */
       freight,
       cod: parseInt(window.formVal('#oCod'), 10) || 0,
+      transferFee: parseInt(window.formVal('#oTransferFee'), 10) || 0,
+      paidAmount: parseInt(window.formVal('#oPaidAmount'), 10) || 0,
       payBy: window.formVal('#oPayBy'),
+      receiveMethod: window.formVal('#oReceiveMethod') || '',
+      otherDocs: window.formVal('#oOtherDocs') || '',
+      loadOrder: window.formVal('#oLoadOrder') || '',
+      /* Vận chuyển */
       driver, driverName, vehicle,
       external, partnerId, partnerName, partnerCost,
       profit: external ? freight - partnerCost : null,
-      status: initStatus,
+      /* Khác */
+      priority: !!document.getElementById('oPriority')?.checked,
+      status,
       staff: window.formVal('#oStaff'),
       note: window.formVal('#oNote') || '',
     };

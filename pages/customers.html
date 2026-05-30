@@ -36,7 +36,7 @@
       </div>
       <div class="head-actions">
         <button class="btn btn-ghost">⬇ Xuất Excel</button>
-        <button class="btn btn-ghost">⬆ Nhập CSV</button>
+        <button class="btn btn-ghost" onclick="window.openBulkImport('customers')">📥 Nhập hàng loạt</button>
         <button class="btn btn-primary" onclick="openAddCustomerModal()">+ Thêm khách hàng</button>
       </div>
     </div>
@@ -284,6 +284,7 @@
 <script src="../scripts/supabase-client.js"></script>
 <script src="../scripts/shared.js"></script>
 <script src="../scripts/store.js"></script>
+<script src="../scripts/bulk-import.js"></script>
 <script src="../scripts/auth.js"></script>
 <script>if(window.AUTH) window.AUTH.requireAuth();</script>
 <script src="../data/customers.js"></script>
