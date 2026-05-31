@@ -424,9 +424,83 @@ window.renderAppShell = function(activeId, breadcrumbText) {
     });
   });
 
-  /* Kích hoạt chuông thông báo + tooltip hover trên mọi trang */
+  /* Kích hoạt chuông thông báo + tooltip hover + tìm kiếm header trên mọi trang */
   try { window.initNotifications(); } catch (e) { console.warn('[notif]', e); }
   try { window.enhanceTooltips(); } catch (e) {}
+  try { window.bindGlobalSearch(); } catch (e) {}
+};
+
+/* =========================================================
+   XUẤT EXCEL (.xlsx) — lazy-load SheetJS từ CDN, dùng chung mọi module
+   window.exportToXLSX(filename, headerArr, rowArrs, sheetName)
+   ========================================================= */
+window.loadXLSX = function() {
+  return new Promise((resolve, reject) => {
+    if (window.XLSX) return resolve(window.XLSX);
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    s.onload = () => resolve(window.XLSX);
+    s.onerror = () => reject(new Error('Không tải được thư viện Excel (kiểm tra mạng)'));
+    document.head.appendChild(s);
+  });
+};
+
+window.exportToXLSX = async function(filename, header, rows, sheetName = 'Sheet1') {
+  try {
+    const XLSX = await window.loadXLSX();
+    const aoa = [header, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    /* tự co giãn độ rộng cột theo nội dung */
+    ws['!cols'] = header.map((h, i) => {
+      const maxLen = Math.max(String(h).length, ...rows.map(r => String(r[i] ?? '').length));
+      return { wch: Math.min(48, Math.max(10, maxLen + 2)) };
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, filename.endsWith('.xlsx') ? filename : filename + '.xlsx');
+    window.toast?.('⬇ Đã xuất ' + filename, 'success');
+  } catch (e) {
+    window.toast?.('Lỗi xuất Excel: ' + e.message, 'danger');
+  }
+};
+
+/* =========================================================
+   TÌM KIẾM TRÊN HEADER — gắn ô .search-global vào bộ lọc của từng trang
+   Ưu tiên forward sang ô lọc sẵn có (#qSearch / tab fleet),
+   nếu không có thì lọc generic theo text trên bảng/thẻ đang hiển thị.
+   ========================================================= */
+window.bindGlobalSearch = function() {
+  const input = document.querySelector('.search-global input');
+  if (!input || input._vtyWired) return;
+  input._vtyWired = true;
+  const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const proxies = ['#qSearch', '#qDriver', '#qPartner', '#qVehicle'];
+
+  function genericFilter(v) {
+    const q = norm(v.trim());
+    document.querySelectorAll('.main tbody tr, main tbody tr, .v-card, .v-grid > div').forEach(el => {
+      if (el.querySelector && el.querySelector('th')) return; /* bỏ hàng tiêu đề */
+      el.style.display = (!q || norm(el.textContent).includes(q)) ? '' : 'none';
+    });
+  }
+
+  input.addEventListener('input', () => {
+    const v = input.value;
+    let forwarded = false;
+    proxies.forEach(sel => {
+      const t = document.querySelector(sel);
+      if (t && t.offsetParent !== null) { /* chỉ ô đang hiển thị (tab active) */
+        t.value = v;
+        t.dispatchEvent(new Event('input', { bubbles: true }));
+        forwarded = true;
+      }
+    });
+    if (!forwarded) genericFilter(v);
+  });
+  /* Ctrl+K focus ô tìm kiếm */
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); input.focus(); }
+  });
 };
 
 /* =========================================================

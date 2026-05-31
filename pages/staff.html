@@ -30,8 +30,8 @@
         <div class="sub">9 nhân viên · 4 phòng ban · phân quyền truy cập module</div>
       </div>
       <div class="head-actions">
-        <button class="btn btn-ghost" onclick="window.toast('Bảng chấm công','info')">📅 Chấm công</button>
-        <button class="btn btn-ghost" onclick="window.toast('Bảng lương tháng','info')">💰 Bảng lương</button>
+        <button class="btn btn-ghost" onclick="window.openTimekeeping()">📅 Chấm công</button>
+        <button class="btn btn-ghost" onclick="window.openPayroll()">💰 Bảng lương</button>
         <button class="btn btn-ghost" onclick="window.openBulkImport('staff')">📥 Nhập hàng loạt</button>
         <button class="btn btn-primary" onclick="window.openModal('+ Thêm nhân viên',formNv(),{footer:footNv(),width:'560px'})">+ Thêm NV</button>
       </div>

@@ -70,7 +70,7 @@
         <div class="sub">6 dịch vụ · Pipeline 6 trạng thái nhất quán · Mã đơn VTY-NNNNNN</div>
       </div>
       <div class="head-actions">
-        <button class="btn btn-ghost" onclick="window.toast('Xuất Excel','info')">⬇ Xuất Excel</button>
+        <button class="btn btn-ghost" onclick="window.exportOrders()">⬇ Xuất Excel</button>
         <button class="btn btn-ghost" onclick="window.toast('In phiếu giao hàng','info')">🖨 In phiếu</button>
         <button class="btn btn-ghost" onclick="window.openBulkImport('orders')">📥 Nhập hàng loạt</button>
         <button class="btn btn-primary" onclick="window.openCreateOrder()">+ Tạo đơn mới</button>
@@ -246,6 +246,7 @@
 <script src="../scripts/bulk-import.js"></script>
 <script src="../scripts/auth.js"></script>
 <script>if(window.AUTH) window.AUTH.requireAuth();</script>
+<script src="../data/customers.js"></script>
 <script src="../data/orders.js"></script>
 <script src="../data/fleet.js"></script>
 <script src="../data/partners.js"></script>

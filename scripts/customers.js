@@ -176,6 +176,21 @@
       .filter(Boolean).some(x => x.toLowerCase().includes(q));
   }
 
+  /* ============ XUẤT EXCEL ============ */
+  window.exportCustomers = function () {
+    const all = window.STORE.get('customers', initialData);
+    const rows = all.filter(c => quickMatch(c) && filterMatch(c) && searchMatch(c));
+    if (!rows.length) { window.toast('Không có khách hàng để xuất', 'warn'); return; }
+    const header = ['Mã KH', 'Tên KH', 'Loại', 'Nhóm', 'Người liên hệ', 'SĐT', 'Email', 'MST', 'Địa chỉ', 'Tỉnh/TP', 'NV phụ trách', 'Số đơn', 'Doanh thu', 'Công nợ', 'Quá hạn'];
+    const data = rows.map(c => [
+      c.code || c.id, c.name || '', c.type || '', c.group || '', c.contact || '',
+      c.phone || '', c.email || '', c.tax || '', c.address || '', c.province || '',
+      c.staffOwner || '', c.orders || 0, c.revenue || 0, c.debt || 0, c.debtOverdue || 0,
+    ]);
+    const stamp = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
+    window.exportToXLSX(`khach-hang-${stamp}.xlsx`, header, data, 'Khách hàng');
+  };
+
   /* ============ DRAWER ============ */
   window.openCustomerDrawer = function (id) {
     const c = customers.find(x => x.id === id);
@@ -340,6 +355,10 @@
           <select id="addGroup">${window.MD.options('custGroups', 'Mới')}</select></div>
       </div>
       <div class="form-row">
+        <div><label>Người liên hệ</label><input id="addContact" placeholder="VD: Anh Hùng (kế toán)"></div>
+        <div><label>MST (mã số thuế)</label><input id="addTax" placeholder="VD: 0101234567"></div>
+      </div>
+      <div class="form-row">
         <div><label>SĐT chính *</label><input id="addPhone" placeholder="0912 xxx xxx"></div>
         <div><label>Email</label><input id="addEmail" type="email"></div>
       </div>
@@ -378,7 +397,8 @@
       id: code, code,
       type: window.formVal('#addType'),
       group: window.formVal('#addGroup'),
-      name, contact: name,
+      name, contact: window.formVal('#addContact') || name,
+      tax: window.formVal('#addTax'),
       phone, email: window.formVal('#addEmail'),
       address: window.formVal('#addAddress'),
       province: window.formVal('#addProvince'),
@@ -422,6 +442,10 @@
         <div><label>SĐT</label><input id="ePhone" value="${c.phone}"></div>
       </div>
       <div class="form-row">
+        <div><label>Người liên hệ</label><input id="eContact" value="${c.contact||''}"></div>
+        <div><label>MST (mã số thuế)</label><input id="eTax" value="${c.tax||''}"></div>
+      </div>
+      <div class="form-row">
         <div><label>Email</label><input id="eEmail" value="${c.email||''}"></div>
         <div><label>NV phụ trách</label>
           <select id="eStaff">${['Trần Lan','Phạm Hùng','Hoàng Mai','Vương Luân'].map(s=>`<option ${c.staffOwner===s?'selected':''}>${s}</option>`).join('')}</select></div>
@@ -437,7 +461,8 @@
       type: window.formVal('#eType'),
       group: window.formVal('#eGroup'),
       name: window.formVal('#eName'),
-      contact: window.formVal('#eName'),
+      contact: window.formVal('#eContact') || window.formVal('#eName'),
+      tax: window.formVal('#eTax'),
       phone: window.formVal('#ePhone'),
       email: window.formVal('#eEmail'),
       staffOwner: window.formVal('#eStaff'),

@@ -48,7 +48,7 @@
       </div>
       <div class="head-actions">
         <button class="btn btn-ghost" onclick="window.openAccountSettings()">⚙ Cài đặt TK</button>
-        <button class="btn btn-ghost" onclick="window.toast('Xuất Excel sổ quỹ','info')">⬇ Xuất Excel</button>
+        <button class="btn btn-ghost" onclick="window.exportCashBook()">⬇ Xuất Excel</button>
         <button class="btn btn-ghost" onclick="window.openModal('+ Phiếu chi',formChi(),{footer:footChi(),width:'520px'})">- Phiếu chi</button>
         <button class="btn btn-primary" onclick="window.openModal('+ Phiếu thu',formThu(),{footer:footThu(),width:'520px'})">+ Phiếu thu</button>
       </div>
@@ -66,7 +66,7 @@
     <!-- 2 cột tổng quan -->
     <div class="acc-grid">
       <div class="acc-card">
-        <div class="h"><h3>💵 Quỹ tiền mặt</h3><div class="spc"></div><button class="btn btn-ghost btn-sm">Lịch sử</button></div>
+        <div class="h"><h3>💵 Quỹ tiền mặt</h3><div class="spc"></div><button class="btn btn-ghost btn-sm" onclick="window.openCashHistory()">Lịch sử</button></div>
         <div class="acc-row"><div class="lab">Đầu kỳ (01/05)</div><div class="val">28.500.000 ₫</div></div>
         <div class="acc-row"><div class="lab">Thu trong kỳ</div><div class="val in">+62.300.000 ₫</div></div>
         <div class="acc-row"><div class="lab">Chi trong kỳ</div><div class="val out">-48.800.000 ₫</div></div>
@@ -80,7 +80,7 @@
       <div class="acc-card">
         <div class="h"><h3>🏦 Tài khoản ngân hàng</h3><div class="spc"></div>
           <button class="btn btn-ghost btn-sm" onclick="window.openAccountSettings()">⚙ Quản lý TK</button>
-          <button class="btn btn-ghost btn-sm">Đối soát</button>
+          <button class="btn btn-ghost btn-sm" onclick="window.openReconcile()">Đối soát</button>
         </div>
         <div class="acc-row"><div class="lab">Vietcombank · 1021xxxxxx</div><div class="val">128.400.000 ₫</div></div>
         <div class="acc-row"><div class="lab">MB Bank · 0312xxxxxx</div><div class="val">42.800.000 ₫</div></div>

@@ -151,6 +151,23 @@
     document.getElementById(id)?.addEventListener('input', render);
   });
 
+  window.exportOrders = function () {
+    orders = window.STORE.get('orders', window.ORDERS || []);
+    const rows = orders.filter(match);
+    if (!rows.length) { window.toast('Không có đơn nào để xuất', 'warn'); return; }
+    const header = ['Mã đơn','Ngày','Khách hàng','Mã KH','NV phụ trách','Dịch vụ','Vận chuyển','Điểm lấy','Điểm giao','Số lượng','ĐVT','KL (kg)','Cước','COD','Tài xế','Xe','Đối tác ngoài','Trạng thái'];
+    const data = rows.map(o => [
+      o.code || '', o.date || '', o.custName || '', o.cust || '', o.staff || '',
+      (SVC[o.serviceType] && SVC[o.serviceType].label) || o.serviceType || '',
+      (o.transportMode && TM[o.transportMode] && TM[o.transportMode].label) || '',
+      o.pickup || '', o.drop || '', o.qty || 0, o.unit || '', o.weight || '',
+      o.freight || 0, o.cod || 0, o.driverName || '', o.vehicle || '',
+      o.external ? 'Có' : '', (STATUS[o.status] && STATUS[o.status].label) || o.status || '',
+    ]);
+    const stamp = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
+    window.exportToXLSX(`don-hang-${stamp}.xlsx`, header, data, 'Đơn hàng');
+  };
+
   /* === Status flow === */
   /* Đổi trạng thái (dùng chung cho nút ▶, dropdown list, dropdown drawer).
      Giữ logic cộng doanh thu KH khi chuyển sang "đã giao" + chống cộng trùng. */

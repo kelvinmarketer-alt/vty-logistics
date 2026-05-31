@@ -978,6 +978,64 @@
     window.toast('✓ Đã thêm tài xế ' + name, 'success');
   };
 
+  /* ============ Lịch đăng kiểm & bảo hiểm cả đội xe ============ */
+  window.openInspectionSchedule = function () {
+    vehicles = window.STORE.get('vehicles', window.VEHICLES || []);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const pv = window.parseVNDate || function (s) {
+      if (!s) return null;
+      const m = String(s).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null;
+    };
+    const daysTo = (d) => d ? Math.round((d - today) / 86400000) : null;
+    const badge = (n) => {
+      if (n === null) return '<span class="alert-badge" style="background:#eee;color:#888">—</span>';
+      if (n < 0) return `<span class="alert-badge danger" style="background:#FEE2E2;color:var(--danger)">Quá hạn ${-n}d</span>`;
+      if (n <= 30) return `<span class="alert-badge warn" style="background:#FEF3C7;color:#B45309">Còn ${n}d</span>`;
+      return `<span class="alert-badge" style="background:#DCFCE7;color:#15803D">Còn ${n}d</span>`;
+    };
+    /* Gom mỗi xe 1 dòng đăng kiểm + 1 dòng bảo hiểm, sort theo ngày gần nhất */
+    const items = [];
+    vehicles.forEach(v => {
+      const reg = pv(v.nextRegister), ins = pv(v.insurance);
+      if (v.nextRegister) items.push({ plate: v.plate, type: v.type, kind: 'Đăng kiểm', icon: '🔧', date: v.nextRegister, d: daysTo(reg) });
+      if (v.insurance) items.push({ plate: v.plate, type: v.type, kind: 'Bảo hiểm', icon: '🛡', date: v.insurance, d: daysTo(ins) });
+    });
+    items.sort((a, b) => (a.d === null) - (b.d === null) || (a.d - b.d));
+    const overdue = items.filter(i => i.d !== null && i.d < 0).length;
+    const soon = items.filter(i => i.d !== null && i.d >= 0 && i.d <= 30).length;
+    const body = items.map(i => `
+      <tr>
+        <td><b>${i.plate}</b><div style="font-size:11px;color:var(--muted)">${i.type}</div></td>
+        <td>${i.icon} ${i.kind}</td>
+        <td style="font-size:12px">${i.date}</td>
+        <td>${badge(i.d)}</td>
+      </tr>`).join('') || `<tr><td colspan="4" style="padding:30px;text-align:center;color:var(--muted)">Chưa có dữ liệu đăng kiểm/bảo hiểm.</td></tr>`;
+
+    window.openModal('📅 Lịch đăng kiểm & bảo hiểm', `
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        <div style="flex:1;padding:10px 12px;background:#FEE2E2;border-radius:8px">
+          <div style="font-size:11px;color:var(--danger);font-weight:700;text-transform:uppercase">Quá hạn</div>
+          <div style="font-size:20px;font-weight:800;color:var(--danger)">${overdue}</div></div>
+        <div style="flex:1;padding:10px 12px;background:#FEF3C7;border-radius:8px">
+          <div style="font-size:11px;color:#B45309;font-weight:700;text-transform:uppercase">Sắp đến hạn (≤30d)</div>
+          <div style="font-size:20px;font-weight:800;color:#B45309">${soon}</div></div>
+        <div style="flex:1;padding:10px 12px;background:#FAFAFB;border-radius:8px">
+          <div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">Tổng mục</div>
+          <div style="font-size:20px;font-weight:800;color:var(--navy)">${items.length}</div></div>
+      </div>
+      <div class="table-wrap" style="max-height:420px;overflow:auto">
+        <table>
+          <thead><tr><th>Xe</th><th>Loại</th><th>Hạn</th><th>Tình trạng</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    `, {
+      footer: `<button class="btn btn-primary" onclick="closeModal()">Đóng</button>`,
+      width: '640px'
+    });
+  };
+
   /* Subscribe + Init */
   window.STORE.subscribe('vehicles', renderVehicles);
   window.STORE.subscribe('drivers', renderDrivers);

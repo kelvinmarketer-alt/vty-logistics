@@ -385,6 +385,250 @@
     window.toast('Đã mở Zalo NV — copy thông tin từ nút bên trái để gửi', 'info');
   };
 
+  /* =======================================================
+     CHẤM CÔNG + BẢNG LƯƠNG
+     - attendance_<YYYY-MM> = { [staffId]: { [day]: code } }
+     - payroll_<YYYY-MM>    = { [staffId]: { bonus, deduct } }
+     Lưu localStorage (STORE.set, không đẩy Supabase → an toàn cho production)
+     ======================================================= */
+  const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+  const ATT = {
+    '':  { label: '·',  ex: '',         val: 0,   bg: 'transparent', fg: '#ccc' },
+    'C': { label: '✓',  ex: 'Công',     val: 1,   bg: '#DCFCE7', fg: '#15803D' },
+    'P': { label: 'P',  ex: 'Phép',     val: 1,   bg: '#DBEAFE', fg: '#1D4ED8' },
+    'T': { label: 'T',  ex: 'Tăng ca',  val: 1,   bg: '#FEF3C7', fg: '#B45309' },
+    'H': { label: '½',  ex: 'Nửa ngày', val: 0.5, bg: '#FCE7F3', fg: '#BE185D' },
+    'N': { label: '✕',  ex: 'Nghỉ',     val: 0,   bg: '#FEE2E2', fg: '#B91C1C' },
+  };
+  const ATT_CYCLE = ['', 'C', 'P', 'T', 'H', 'N'];
+
+  function curMonth() { return window._tkMonth || new Date().toISOString().slice(0, 7); }
+  function daysInMonth(ym) { const [y, m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
+  function dowOf(ym, day) { const [y, m] = ym.split('-').map(Number); return new Date(y, m - 1, day).getDay(); }
+  function standardWorkDays(ym) {
+    let n = 0; const d = daysInMonth(ym);
+    for (let i = 1; i <= d; i++) if (dowOf(ym, i) !== 0) n++;
+    return n;
+  }
+  function getAttendance(ym) { return window.STORE.get('attendance_' + ym, {}); }
+  function actualDays(ym, sid) {
+    const a = getAttendance(ym)[sid] || {};
+    return Object.values(a).reduce((s, c) => s + (ATT[c] ? ATT[c].val : 0), 0);
+  }
+  function otCount(ym, sid) {
+    const a = getAttendance(ym)[sid] || {};
+    return Object.values(a).filter(c => c === 'T').length;
+  }
+
+  /* ----- Bảng chấm công ----- */
+  function tkTableHTML(ym) {
+    const d = daysInMonth(ym);
+    const att = getAttendance(ym);
+    let head = '';
+    for (let i = 1; i <= d; i++) {
+      const dow = dowOf(ym, i);
+      head += `<th class="tk-d ${dow === 0 ? 'tk-sun' : ''}">${i}<div style="font-size:9px;font-weight:400">${WD[dow]}</div></th>`;
+    }
+    const body = staffs.map(s => {
+      const sa = att[s.id] || {};
+      let cells = '';
+      for (let i = 1; i <= d; i++) {
+        const c = sa[i] || ''; const a = ATT[c]; const dow = dowOf(ym, i);
+        cells += `<td class="tk-cell ${dow === 0 ? 'tk-sun' : ''}" data-sid="${s.id}" data-day="${i}" style="background:${a.bg};color:${a.fg}">${a.label}</td>`;
+      }
+      return `<tr>
+        <td class="tk-name"><b>${s.name}</b><div style="font-size:10px;color:var(--muted)">${s.code}</div></td>
+        ${cells}
+        <td class="tk-sum"><b>${actualDays(ym, s.id)}</b></td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="${d + 2}" style="padding:30px;text-align:center;color:var(--muted)">Chưa có NV.</td></tr>`;
+    return `<table class="tk-table">
+      <thead><tr><th class="tk-name tk-head">Nhân viên</th>${head}<th class="tk-sum tk-head">Công</th></tr></thead>
+      <tbody>${body}</tbody></table>`;
+  }
+
+  function refreshTK() {
+    const wrap = document.getElementById('tkWrap');
+    if (wrap) wrap.innerHTML = tkTableHTML(curMonth());
+    bindTKCells();
+  }
+  function bindTKCells() {
+    document.querySelectorAll('.tk-cell').forEach(td => {
+      td.onclick = () => {
+        const ym = curMonth(), sid = td.dataset.sid, day = td.dataset.day;
+        const att = JSON.parse(JSON.stringify(getAttendance(ym)));
+        att[sid] = att[sid] || {};
+        const cur = att[sid][day] || '';
+        const next = ATT_CYCLE[(ATT_CYCLE.indexOf(cur) + 1) % ATT_CYCLE.length];
+        if (next === '') delete att[sid][day]; else att[sid][day] = next;
+        window.STORE.set('attendance_' + ym, att);
+        const a = ATT[next];
+        td.textContent = a.label; td.style.background = a.bg; td.style.color = a.fg;
+        const sum = td.parentElement.querySelector('.tk-sum');
+        if (sum) sum.innerHTML = '<b>' + actualDays(ym, sid) + '</b>';
+      };
+    });
+  }
+
+  window.openTimekeeping = function () {
+    staffs = window.STORE.get('staff', window.STAFFS || []);
+    const ym = curMonth();
+    window.openModal('📅 Bảng chấm công', `
+      <style>
+        .tk-table{border-collapse:collapse;font-size:12px}
+        .tk-table th,.tk-table td{border:1px solid var(--line);padding:3px 5px}
+        .tk-d{min-width:24px;text-align:center;font-size:10px}
+        .tk-cell{text-align:center;font-weight:700;cursor:pointer;min-width:24px;user-select:none}
+        .tk-cell:hover{outline:2px solid var(--navy);outline-offset:-2px}
+        .tk-sun{background:#FEF2F2}
+        .tk-name{position:sticky;left:0;background:#fff;white-space:nowrap;z-index:1}
+        .tk-sum{position:sticky;right:0;background:#fff;text-align:right;z-index:1}
+        .tk-head{background:var(--bg);z-index:2}
+        .tk-lg{display:inline-block;padding:1px 6px;border-radius:4px;font-weight:700;margin:0 2px;font-size:11px}
+      </style>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+        <input type="month" id="tkMonth" value="${ym}" style="border:1px solid var(--line);border-radius:7px;padding:7px;font-size:13px">
+        <div style="font-size:12px;color:var(--muted)">Bấm ô để đổi:
+          <span class="tk-lg" style="background:#DCFCE7;color:#15803D">✓ Công</span>
+          <span class="tk-lg" style="background:#DBEAFE;color:#1D4ED8">P Phép</span>
+          <span class="tk-lg" style="background:#FEF3C7;color:#B45309">T Tăng ca</span>
+          <span class="tk-lg" style="background:#FCE7F3;color:#BE185D">½ Nửa ngày</span>
+          <span class="tk-lg" style="background:#FEE2E2;color:#B91C1C">✕ Nghỉ</span>
+        </div>
+      </div>
+      <div id="tkWrap" class="table-wrap" style="max-height:60vh;overflow:auto">${tkTableHTML(ym)}</div>
+    `, {
+      footer: `<button class="btn btn-ghost" onclick="window.exportTimekeeping()">⬇ Xuất Excel</button>
+               <button class="btn btn-navy" onclick="window.openPayroll()">💰 Tính lương →</button>
+               <button class="btn btn-primary" onclick="closeModal()">Đóng</button>`,
+      width: '94vw'
+    });
+    const m = document.getElementById('tkMonth');
+    if (m) m.onchange = () => { window._tkMonth = m.value; refreshTK(); };
+    bindTKCells();
+  };
+
+  window.exportTimekeeping = function () {
+    const ym = curMonth(), d = daysInMonth(ym), att = getAttendance(ym);
+    const header = ['Mã NV', 'Tên', ...Array.from({ length: d }, (_, i) => String(i + 1)), 'Tổng công'];
+    const data = staffs.map(s => {
+      const sa = att[s.id] || {};
+      const days = Array.from({ length: d }, (_, i) => ATT[sa[i + 1] || ''].ex);
+      return [s.code, s.name, ...days, actualDays(ym, s.id)];
+    });
+    window.exportToXLSX(`cham-cong-${ym}.xlsx`, header, data, 'Cham cong ' + ym);
+  };
+
+  /* ----- Bảng lương ----- */
+  function getPayrollAdj(ym) { return window.STORE.get('payroll_' + ym, {}); }
+  function payrollRows(ym) {
+    const std = standardWorkDays(ym), pr = getPayrollAdj(ym);
+    return staffs.map(s => {
+      const salary = s.salary || 0;
+      const actual = actualDays(ym, s.id);
+      const ot = otCount(ym, s.id);
+      const daily = std ? salary / std : 0;
+      const earned = Math.round(daily * actual);
+      const otBonus = Math.round(daily * 0.5 * ot);
+      const adj = pr[s.id] || {};
+      const bonus = adj.bonus || 0, deduct = adj.deduct || 0;
+      const total = earned + otBonus + bonus - deduct;
+      return { s, salary, std, actual, ot, earned, otBonus, bonus, deduct, total };
+    });
+  }
+  function payrollInner(ym) {
+    const rows = payrollRows(ym);
+    const grand = rows.reduce((a, r) => a + r.total, 0);
+    const inpStyle = 'width:88px;border:1px solid var(--line);border-radius:6px;padding:6px;font-size:12px;text-align:right';
+    const body = rows.map(r => `
+      <tr>
+        <td><b>${r.s.name}</b><div style="font-size:10px;color:var(--muted)">${r.s.code} · ${r.s.dept}</div></td>
+        <td class="num">${window.fmt(r.salary)}</td>
+        <td class="num">${r.std}</td>
+        <td class="num">${r.actual}</td>
+        <td class="num">${r.ot || '—'}</td>
+        <td class="num">${window.fmt(r.earned)}</td>
+        <td class="num">${r.otBonus ? '+' + window.fmt(r.otBonus) : '—'}</td>
+        <td><input type="number" class="pr-bonus" data-sid="${r.s.id}" value="${r.bonus || ''}" placeholder="0" style="${inpStyle}"></td>
+        <td><input type="number" class="pr-deduct" data-sid="${r.s.id}" value="${r.deduct || ''}" placeholder="0" style="${inpStyle}"></td>
+        <td class="num pr-total" data-sid="${r.s.id}" data-base="${r.earned + r.otBonus}"><b>${window.fmt(r.total)}</b></td>
+      </tr>`).join('') || `<tr><td colspan="10" style="padding:30px;text-align:center;color:var(--muted)">Chưa có NV.</td></tr>`;
+    return `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+        <input type="month" id="prMonth" value="${ym}" style="border:1px solid var(--line);border-radius:7px;padding:7px;font-size:13px">
+        <div style="font-size:12px;color:var(--muted)">Công chuẩn = ngày làm T2–T7 (${standardWorkDays(ym)} ngày) · Lương/công = Lương CB ÷ công chuẩn · Tăng ca +50%</div>
+      </div>
+      <div class="table-wrap" style="max-height:58vh;overflow:auto">
+        <table>
+          <thead><tr>
+            <th>Nhân viên</th><th class="num">Lương CB</th><th class="num">Công chuẩn</th>
+            <th class="num">Công TT</th><th class="num">Tăng ca</th><th class="num">Lương theo công</th>
+            <th class="num">Phụ cấp OT</th><th>Thưởng</th><th>Phạt</th><th class="num">Thực lĩnh</th>
+          </tr></thead>
+          <tbody>${body}</tbody>
+          <tfoot><tr style="background:var(--bg)">
+            <td colspan="9" style="text-align:right"><b>Tổng quỹ lương tháng</b></td>
+            <td class="num" id="prGrand"><b>${window.fmt(grand)}</b></td>
+          </tr></tfoot>
+        </table>
+      </div>`;
+  }
+  function bindPayroll() {
+    const m = document.getElementById('prMonth');
+    if (m) m.onchange = () => {
+      window._tkMonth = m.value;
+      const root = document.getElementById('prRoot');
+      if (root) root.innerHTML = payrollInner(curMonth());
+      bindPayroll();
+    };
+    function recompute() {
+      let grand = 0;
+      document.querySelectorAll('.pr-total').forEach(cell => {
+        const sid = cell.dataset.sid, base = +cell.dataset.base || 0;
+        const bonus = +(document.querySelector('.pr-bonus[data-sid="' + sid + '"]')?.value || 0);
+        const deduct = +(document.querySelector('.pr-deduct[data-sid="' + sid + '"]')?.value || 0);
+        const total = base + bonus - deduct;
+        cell.innerHTML = '<b>' + window.fmt(total) + '</b>';
+        grand += total;
+      });
+      const g = document.getElementById('prGrand');
+      if (g) g.innerHTML = '<b>' + window.fmt(grand) + '</b>';
+    }
+    document.querySelectorAll('.pr-bonus,.pr-deduct').forEach(inp => inp.addEventListener('input', recompute));
+  }
+
+  window.openPayroll = function () {
+    staffs = window.STORE.get('staff', window.STAFFS || []);
+    const ym = curMonth();
+    window.openModal('💰 Bảng lương tháng', `<div id="prRoot">${payrollInner(ym)}</div>`, {
+      footer: `<button class="btn btn-ghost" onclick="window.exportPayroll()">⬇ Xuất Excel</button>
+               <button class="btn btn-navy" onclick="window.savePayroll()">💾 Lưu thưởng/phạt</button>
+               <button class="btn btn-primary" onclick="closeModal()">Đóng</button>`,
+      width: '1000px'
+    });
+    bindPayroll();
+  };
+
+  window.savePayroll = function () {
+    const ym = curMonth(), pr = {};
+    document.querySelectorAll('.pr-bonus').forEach(inp => {
+      const sid = inp.dataset.sid;
+      const bonus = parseInt(inp.value, 10) || 0;
+      const deduct = parseInt(document.querySelector('.pr-deduct[data-sid="' + sid + '"]')?.value, 10) || 0;
+      if (bonus || deduct) pr[sid] = { bonus, deduct };
+    });
+    window.STORE.set('payroll_' + ym, pr);
+    window.toast('✓ Đã lưu thưởng/phạt tháng ' + ym, 'success');
+  };
+
+  window.exportPayroll = function () {
+    const ym = curMonth(), rows = payrollRows(ym);
+    if (!rows.length) { window.toast('Không có dữ liệu lương', 'warn'); return; }
+    const header = ['Mã NV', 'Tên', 'Phòng', 'Lương CB', 'Công chuẩn', 'Công TT', 'Tăng ca', 'Lương theo công', 'Phụ cấp OT', 'Thưởng', 'Phạt', 'Thực lĩnh'];
+    const data = rows.map(r => [r.s.code, r.s.name, r.s.dept, r.salary, r.std, r.actual, r.ot, r.earned, r.otBonus, r.bonus, r.deduct, r.total]);
+    window.exportToXLSX(`bang-luong-${ym}.xlsx`, header, data, 'Bang luong ' + ym);
+  };
+
   window.STORE.subscribe('staff', render);
   window.renderAppShell('staff', 'Nhân viên');
   ['qSearch','fStatus'].forEach(id => document.getElementById(id)?.addEventListener('input', render));

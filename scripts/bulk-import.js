@@ -254,8 +254,9 @@
     return schema.cols.filter(c => c.required && !String(row[c.key] || '').trim()).map(c => c.label);
   }
 
-  /* === Lazy load SheetJS cho .xlsx === */
+  /* === Lazy load SheetJS (dùng chung helper toàn cục) === */
   function loadXLSX() {
+    if (window.loadXLSX) return window.loadXLSX();
     return new Promise((resolve, reject) => {
       if (window.XLSX) return resolve(window.XLSX);
       const s = document.createElement('script');
@@ -279,12 +280,17 @@
     return parseDelimited(await file.text());
   }
 
-  /* === Sinh & tải file mẫu CSV === */
-  function downloadTemplate(key) {
+  /* === Sinh & tải file mẫu .xlsx === */
+  async function downloadTemplate(key) {
     const schema = SCHEMAS[key];
-    const header = schema.cols.map(c => c.label).join(',');
-    const sample = schema.cols.map(c => c.required ? '(bắt buộc)' : '').join(',');
-    const blob = new Blob(['﻿' + header + '\n' + sample + '\n'], { type: 'text/csv;charset=utf-8' });
+    const header = schema.cols.map(c => c.label + (c.required ? ' *' : ''));
+    const sample = schema.cols.map(c => c.required ? '(bắt buộc)' : '');
+    if (window.exportToXLSX) {
+      await window.exportToXLSX(`mau-nhap-${key}.xlsx`, header, [sample], schema.title);
+      return;
+    }
+    /* fallback CSV nếu chưa có helper */
+    const blob = new Blob(['﻿' + header.join(',') + '\n' + sample.join(',') + '\n'], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `mau-nhap-${key}.csv`;
@@ -512,7 +518,7 @@ Quy tắc:
       </div>
       <div style="margin-bottom:10px">${colList}</div>
       <div style="margin-bottom:12px">
-        <button class="btn btn-sm btn-ghost" onclick="window._biTemplate('${key}')">⬇ Tải file mẫu (.csv)</button>
+        <button class="btn btn-sm btn-ghost" onclick="window._biTemplate('${key}')">⬇ Tải file mẫu (.xlsx)</button>
       </div>
       <div class="form-row">
         <div><label>Chọn file</label><input id="biFile" type="file" accept=".csv,.xlsx,.xls"></div>

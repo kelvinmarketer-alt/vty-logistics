@@ -236,6 +236,150 @@
     window.openAccountSettings();
   };
 
+  /* ============ Xuất Excel sổ quỹ ============ */
+  function filteredEntries() {
+    entries = window.STORE.get('cashEntries', INITIAL_ENTRIES);
+    const q = (document.getElementById('qSearch')?.value || '').trim().toLowerCase();
+    const t = document.getElementById('fType')?.value || '';
+    const a = document.getElementById('fAccount')?.value || '';
+    return entries.filter(e =>
+      (!q || [e.no, e.party, e.desc].some(x => (x || '').toLowerCase().includes(q))) &&
+      (!t || e.type === t) &&
+      (!a || e.account === a)
+    );
+  }
+
+  window.exportCashBook = function () {
+    const rows = filteredEntries();
+    if (!rows.length) { window.toast('Không có phiếu nào để xuất', 'warn'); return; }
+    const header = ['Số phiếu','Ngày','Loại','Đối tượng','Diễn giải','Tài khoản','Số tiền','NV lập'];
+    const data = rows.map(e => [
+      e.no || '', e.date || '', e.type === 'in' ? 'Thu' : 'Chi',
+      e.party || '', e.desc || '', e.account || '',
+      (e.type === 'in' ? 1 : -1) * (e.amount || 0), e.staff || '',
+    ]);
+    const stamp = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
+    window.exportToXLSX(`so-quy-${stamp}.xlsx`, header, data, 'Sổ quỹ');
+  };
+
+  /* ============ Lịch sử quỹ tiền mặt (running balance) ============ */
+  window.openCashHistory = function () {
+    entries = window.STORE.get('cashEntries', INITIAL_ENTRIES);
+    accounts = window.STORE.get('paymentAccounts', INITIAL_ACCOUNTS);
+    const cashAcc = accounts.find(a => a.kind === 'cash');
+    const cashName = cashAcc ? cashAcc.name : 'Tiền mặt';
+    /* Chỉ lấy phiếu của TK tiền mặt; sắp xếp cũ → mới để tính số dư lũy kế */
+    const cashEntries = entries
+      .filter(e => e.account === 'Tiền mặt' || e.account === cashName)
+      .slice()
+      .sort((a, b) => (window.parseVNDate ? window.parseVNDate(a.date) - window.parseVNDate(b.date) : 0));
+    const totalIn = cashEntries.filter(e => e.type === 'in').reduce((s, e) => s + e.amount, 0);
+    const totalOut = cashEntries.filter(e => e.type === 'out').reduce((s, e) => s + e.amount, 0);
+    const closing = cashAcc ? cashAcc.balance : (totalIn - totalOut);
+    /* Số dư đầu kỳ = số dư cuối - (thu - chi) */
+    let running = closing - (totalIn - totalOut);
+    const opening = running;
+    const body = cashEntries.map(e => {
+      running += (e.type === 'in' ? e.amount : -e.amount);
+      return `<tr>
+        <td style="font-size:12px;color:var(--muted)">${e.date}</td>
+        <td><b>${e.no}</b></td>
+        <td style="font-size:12px">${e.desc}</td>
+        <td class="num type-in">${e.type === 'in' ? '+' + window.fmt(e.amount) : ''}</td>
+        <td class="num type-out">${e.type === 'out' ? '-' + window.fmt(e.amount) : ''}</td>
+        <td class="num"><b>${window.fmt(running)}</b></td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="6" style="padding:30px;text-align:center;color:var(--muted)">Chưa có phiếu tiền mặt.</td></tr>`;
+
+    window.openModal('💵 Lịch sử quỹ tiền mặt', `
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:130px;padding:10px 12px;background:#FAFAFB;border-radius:8px">
+          <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">Đầu kỳ</div>
+          <div style="font-size:16px;font-weight:800;color:var(--navy)">${window.fmt(opening)} ₫</div></div>
+        <div style="flex:1;min-width:130px;padding:10px 12px;background:#FAFAFB;border-radius:8px">
+          <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">Tổng thu</div>
+          <div style="font-size:16px;font-weight:800;color:var(--ok)">+${window.fmt(totalIn)} ₫</div></div>
+        <div style="flex:1;min-width:130px;padding:10px 12px;background:#FAFAFB;border-radius:8px">
+          <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">Tổng chi</div>
+          <div style="font-size:16px;font-weight:800;color:var(--danger)">-${window.fmt(totalOut)} ₫</div></div>
+        <div style="flex:1;min-width:130px;padding:10px 12px;background:var(--navy);border-radius:8px">
+          <div style="font-size:11px;color:#fff;opacity:0.7;font-weight:600;text-transform:uppercase">Số dư cuối</div>
+          <div style="font-size:16px;font-weight:800;color:#fff">${window.fmt(closing)} ₫</div></div>
+      </div>
+      <div class="table-wrap" style="max-height:420px;overflow:auto">
+        <table>
+          <thead><tr>
+            <th>Ngày</th><th>Số phiếu</th><th>Diễn giải</th>
+            <th class="num">Thu</th><th class="num">Chi</th><th class="num">Số dư</th>
+          </tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    `, {
+      footer: `<button class="btn btn-ghost" onclick="window.exportCashBook()">⬇ Xuất Excel</button>
+               <button class="btn btn-primary" onclick="closeModal()">Đóng</button>`,
+      width: '760px'
+    });
+  };
+
+  /* ============ Đối soát ngân hàng ============ */
+  window.openReconcile = function () {
+    accounts = window.STORE.get('paymentAccounts', INITIAL_ACCOUNTS);
+    const banks = accounts.filter(a => a.kind === 'bank' && a.active);
+    const rows = banks.map(a => `
+      <tr data-acc="${a.id}">
+        <td><b>${a.name}</b><div style="font-size:11px;color:var(--muted)">${a.detail}</div></td>
+        <td class="num"><b>${window.fmt(a.balance)}</b> ₫</td>
+        <td><input type="number" class="rec-actual" data-acc="${a.id}" placeholder="Nhập số dư thực" style="width:150px;border:1px solid var(--line);border-radius:7px;padding:7px;font-size:13px;text-align:right"></td>
+        <td class="num rec-diff" data-acc="${a.id}" style="font-weight:700;color:var(--muted)">—</td>
+      </tr>`).join('') || `<tr><td colspan="4" style="padding:30px;text-align:center;color:var(--muted)">Chưa có tài khoản ngân hàng.</td></tr>`;
+
+    window.openModal('🔄 Đối soát ngân hàng', `
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
+        Nhập số dư thực tế từ sao kê/app ngân hàng để so với số dư trên sổ. Chênh lệch ≠ 0 cần kiểm tra phiếu thu/chi.
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Tài khoản</th><th class="num">Số dư trên sổ</th><th>Số dư thực tế</th><th class="num">Chênh lệch</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `, {
+      footer: `<button class="btn btn-ghost" onclick="closeModal()">Đóng</button>
+               <button class="btn btn-primary" onclick="window.runReconcile()">✓ Đối soát</button>`,
+      width: '680px'
+    });
+
+    document.querySelectorAll('.rec-actual').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const a = accounts.find(x => x.id === inp.dataset.acc);
+        const actual = parseFloat(inp.value);
+        const cell = document.querySelector(`.rec-diff[data-acc="${inp.dataset.acc}"]`);
+        if (isNaN(actual) || !a) { cell.textContent = '—'; cell.style.color = 'var(--muted)'; return; }
+        const diff = actual - a.balance;
+        cell.textContent = (diff > 0 ? '+' : '') + window.fmt(diff) + ' ₫';
+        cell.style.color = diff === 0 ? 'var(--ok)' : 'var(--danger)';
+      });
+    });
+  };
+
+  window.runReconcile = function () {
+    const inputs = document.querySelectorAll('.rec-actual');
+    let checked = 0, matched = 0, diffs = 0;
+    inputs.forEach(inp => {
+      const a = accounts.find(x => x.id === inp.dataset.acc);
+      const actual = parseFloat(inp.value);
+      if (isNaN(actual) || !a) return;
+      checked++;
+      if (actual - a.balance === 0) matched++; else diffs++;
+    });
+    if (!checked) { window.toast('Chưa nhập số dư thực tế nào', 'warn'); return; }
+    window.closeModal();
+    window.toast(`Đối soát ${checked} TK · khớp ${matched} · lệch ${diffs}`, diffs ? 'warn' : 'success');
+  };
+
   window.STORE.subscribe('cashEntries', render);
   window.renderAppShell('accounting', 'Kế toán');
   ['qSearch','fType','fAccount','fFrom','fTo'].forEach(id => document.getElementById(id)?.addEventListener('input', render));
