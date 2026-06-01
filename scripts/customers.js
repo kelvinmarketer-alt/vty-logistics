@@ -130,6 +130,20 @@
       <div class="kpi k-3"><div class="kpi-label">Đang nợ</div><div class="kpi-value">${owing.length}</div><div class="kpi-trend ${overdueSum ? 'down' : ''}">${overdueSum ? 'Quá hạn ' + window.fmtShort(overdueSum) + ' ₫' : 'Không có quá hạn'}</div><div class="kpi-icon">⚠️</div></div>
       <div class="kpi k-4"><div class="kpi-label">Khách VIP</div><div class="kpi-value">${vip}</div><div class="kpi-trend up">${vipPct}% doanh thu</div><div class="kpi-icon">⭐</div></div>
       <div class="kpi k-5"><div class="kpi-label">Không hoạt động</div><div class="kpi-value">${inactive}</div><div class="kpi-trend">&gt; 90 ngày không phát sinh</div><div class="kpi-icon">💤</div></div>`;
+    /* Cập nhật số trên quick-chips (khớp quickMatch) */
+    const chipCounts = {
+      all: all.length,
+      b2b: all.filter(c => c.type === 'B2B').length,
+      b2c: all.filter(c => c.type === 'B2C').length,
+      vip: all.filter(c => c.group === 'VIP').length,
+      debt: all.filter(c => (c.debt || 0) > 0).length,
+      new: all.filter(c => c.group === 'Mới').length,
+      inact: all.filter(c => !c.active || c.group === 'Inactive').length,
+    };
+    document.querySelectorAll('.quick-chips .chip').forEach(ch => {
+      const k = ch.dataset.quick, span = ch.querySelector('.cnt');
+      if (span && k in chipCounts) span.textContent = chipCounts[k];
+    });
   }
 
   function render() {

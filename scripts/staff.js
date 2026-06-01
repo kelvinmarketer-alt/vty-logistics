@@ -21,6 +21,11 @@
       <div class="kpi k-4"><div class="kpi-label">KPI TB tháng</div><div class="kpi-value">${kpiAvg !== null ? kpiAvg + '%' : '—'}</div><div class="kpi-trend">${kpiAvg !== null ? 'Trung bình NV' : 'Chưa chấm KPI'}</div><div class="kpi-icon">📈</div></div>
       <div class="kpi k-3"><div class="kpi-label">Tổng lương CB</div><div class="kpi-value">${window.fmtShort(totalSalary)}</div><div class="kpi-trend">Lương cơ bản/tháng</div><div class="kpi-icon">💰</div></div>
       <div class="kpi k-5"><div class="kpi-label">Tài xế / Vận hành</div><div class="kpi-value">${drivers}</div><div class="kpi-trend">→ Xem Fleet</div><div class="kpi-icon">🚚</div></div>`;
+    /* Số trên quick-chips theo phòng ban */
+    document.querySelectorAll('.quick-chips .chip').forEach(ch => {
+      const k = ch.dataset.q, span = ch.querySelector('.cnt');
+      if (span) span.textContent = (k === 'all') ? all.length : all.filter(s => s.dept === k).length;
+    });
   }
 
   function render() {
