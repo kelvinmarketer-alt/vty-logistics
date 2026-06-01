@@ -124,8 +124,15 @@
     <!-- Table -->
     <div class="table-card">
       <div class="table-head">
-        <div class="checkbox" onclick="this.classList.toggle('on')"></div>
-        <div class="count" id="rowCount">Đang hiển thị 28 / 28 khách hàng</div>
+        <input type="checkbox" id="selAll" title="Chọn tất cả" style="width:17px;height:17px;cursor:pointer">
+        <div class="count" id="rowCount">Đang hiển thị 0 / 0 khách hàng</div>
+        <div id="bulkBar" style="display:none;align-items:center;gap:8px;margin-left:14px">
+          <b id="bulkCount" style="color:var(--navy)">0</b><span style="color:var(--muted);font-size:13px">đã chọn</span>
+          <button class="btn btn-ghost btn-sm" onclick="window.bulkEditCustomers('staff')">👤 Đổi NV phụ trách</button>
+          <button class="btn btn-ghost btn-sm" onclick="window.bulkEditCustomers('group')">🏷 Đổi nhóm</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="window.bulkDeleteCustomers()">🗑 Xoá đã chọn</button>
+          <button class="btn btn-ghost btn-sm" onclick="window.clearBulkSel()">✕ Bỏ chọn</button>
+        </div>
         <div class="spacer"></div>
         <button class="btn btn-ghost btn-sm">⚙ Cột hiển thị</button>
         <button class="btn btn-ghost btn-sm">↕ Sắp xếp</button>

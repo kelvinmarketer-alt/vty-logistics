@@ -40,7 +40,21 @@
   /* Register service worker (chỉ trên HTTPS / localhost) */
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(err => console.warn('[PWA] SW register failed:', err));
+      navigator.serviceWorker.register('/sw.js').then(reg => {
+        reg.update();
+        /* Khi có bản SW mới cài xong (và đã có controller cũ) → reload 1 lần lấy file mới */
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', () => {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller && !window._vtyReloaded) {
+              window._vtyReloaded = true;
+              nw.postMessage('skipWaiting');
+              location.reload();
+            }
+          });
+        });
+      }).catch(err => console.warn('[PWA] SW register failed:', err));
     });
   }
 

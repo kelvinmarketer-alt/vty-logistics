@@ -1,7 +1,9 @@
 /* =========================================================
-   VTY Logistics — Service Worker (PWA offline + cache)
+   VTY Logistics — Service Worker (PWA)
+   Chiến lược: NETWORK-FIRST cho HTML/JS/CSS (luôn lấy bản mới khi online),
+   fallback cache khi offline. Tránh kẹt file cũ như "Cache-First".
    ========================================================= */
-const CACHE_VERSION = 'vty-v1';
+const CACHE_VERSION = 'vty-v3-20260601';
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -25,28 +27,37 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
-  /* Xóa cache cũ */
+  /* Xoá toàn bộ cache cũ (kể cả vty-v1 cache-first) */
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k)))
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
+});
+
+self.addEventListener('message', e => {
+  if (e.data === 'skipWaiting') self.skipWaiting();
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  /* Strategy: Cache First, fallback Network, save to cache */
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  /* Chỉ xử lý cùng origin; bỏ qua API Supabase/CDN để không cache nhầm */
+  if (url.origin !== self.location.origin) return;
+
+  /* NETWORK-FIRST: luôn thử mạng trước → cập nhật cache → fallback cache khi offline */
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(res => {
-        if (res.ok && res.type === 'basic') {
-          const clone = res.clone();
-          caches.open(CACHE_VERSION).then(c => c.put(e.request, clone));
-        }
-        return res;
-      }).catch(() => caches.match('/pages/login.html'));
-    })
+    fetch(req).then(res => {
+      if (res && res.ok && res.type === 'basic') {
+        const clone = res.clone();
+        caches.open(CACHE_VERSION).then(c => c.put(req, clone));
+      }
+      return res;
+    }).catch(() =>
+      caches.match(req).then(cached =>
+        cached || (req.mode === 'navigate' ? caches.match('/pages/login.html') : undefined)
+      )
+    )
   );
 });

@@ -52,6 +52,64 @@
   const footCount = document.getElementById('footCount');
 
   /* ============ RENDER ============ */
+  /* ============ Chọn / sửa / xoá hàng loạt ============ */
+  function getSelectedIds() {
+    return [...document.querySelectorAll('#tbody .row-chk:checked')].map(c => c.dataset.id);
+  }
+  function updateBulkBar() {
+    const ids = getSelectedIds();
+    const bar = document.getElementById('bulkBar');
+    const cnt = document.getElementById('bulkCount');
+    if (cnt) cnt.textContent = ids.length;
+    if (bar) bar.style.display = ids.length ? 'flex' : 'none';
+    const selAll = document.getElementById('selAll');
+    const all = document.querySelectorAll('#tbody .row-chk');
+    if (selAll) selAll.checked = all.length > 0 && ids.length === all.length;
+  }
+  window.clearBulkSel = function () {
+    document.querySelectorAll('#tbody .row-chk').forEach(c => c.checked = false);
+    const selAll = document.getElementById('selAll'); if (selAll) selAll.checked = false;
+    updateBulkBar();
+  };
+  window.bulkDeleteCustomers = function () {
+    const ids = getSelectedIds();
+    if (!ids.length) { window.toast('Chưa chọn khách hàng nào', 'warn'); return; }
+    window.confirmDelete(`Xoá ${ids.length} khách hàng đã chọn?`, () => {
+      ids.forEach(id => window.STORE.remove('customers', id));
+      window.toast(`Đã xoá ${ids.length} khách hàng`, 'danger');
+      window.clearBulkSel();
+      render();
+    });
+  };
+  window.bulkEditCustomers = function (field) {
+    const ids = getSelectedIds();
+    if (!ids.length) { window.toast('Chưa chọn khách hàng nào', 'warn'); return; }
+    if (field === 'staff') {
+      openBulkPick(`Đổi NV phụ trách cho ${ids.length} KH`, ['Trần Lan', 'Phạm Hùng', 'Hoàng Mai', 'Vương Luân'], val => {
+        ids.forEach(id => window.STORE.update('customers', id, { staffOwner: val }));
+        window.toast(`Đã đổi NV phụ trách cho ${ids.length} KH`, 'success');
+        window.clearBulkSel(); render();
+      });
+    } else if (field === 'group') {
+      const groups = (window.MD && window.MD.get('custGroups') || ['VIP', 'Thường', 'Mới', 'Inactive']).map(g => g.label || g);
+      openBulkPick(`Đổi nhóm cho ${ids.length} KH`, groups, val => {
+        ids.forEach(id => window.STORE.update('customers', id, { group: val }));
+        window.toast(`Đã đổi nhóm cho ${ids.length} KH`, 'success');
+        window.clearBulkSel(); render();
+      });
+    }
+  };
+  function openBulkPick(title, opts, onPick) {
+    window.openModal(title, `
+      <div class="form-row wide"><label>Chọn giá trị mới</label>
+        <select id="bulkVal">${opts.map(o => `<option>${o}</option>`).join('')}</select></div>
+    `, {
+      footer: `<button class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+               <button class="btn btn-primary" onclick="window._bulkApply()">💾 Áp dụng</button>`
+    });
+    window._bulkApply = () => { const v = window.formVal('#bulkVal'); window.closeModal(); onPick(v); };
+  }
+
   function renderKPIs(all) {
     const el = document.querySelector('.kpis');
     if (!el) return;
@@ -101,7 +159,7 @@
         : '';
       const phoneClean = (c.phone || '').replace(/\s/g,'');
       return `<tr data-id="${c.id}">
-        <td onclick="event.stopPropagation()"><div class="checkbox" onclick="this.classList.toggle('on')"></div></td>
+        <td onclick="event.stopPropagation()"><input type="checkbox" class="row-chk" data-id="${c.id}" style="width:16px;height:16px;cursor:pointer"></td>
         <td>
           <div class="cust-cell">
             <div class="cust-ava" style="background:${col}">${ava}</div>
@@ -136,6 +194,17 @@
     tbody.querySelectorAll('tr[data-id]').forEach(tr => {
       tr.onclick = () => openCustomerDrawer(tr.dataset.id);
     });
+    /* Bind checkbox chọn hàng loạt */
+    tbody.querySelectorAll('.row-chk').forEach(chk => {
+      chk.onclick = (e) => e.stopPropagation();
+      chk.onchange = updateBulkBar;
+    });
+    const selAll = document.getElementById('selAll');
+    if (selAll) { selAll.checked = false; selAll.onchange = () => {
+      tbody.querySelectorAll('.row-chk').forEach(c => c.checked = selAll.checked);
+      updateBulkBar();
+    }; }
+    updateBulkBar();
     tbody.querySelectorAll('button[data-act]').forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation();
