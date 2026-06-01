@@ -228,17 +228,28 @@ window.avatarColor = function(seed) {
   return window.AVATAR_COLORS[h % window.AVATAR_COLORS.length];
 };
 
+/* Badge số ở sidebar — tính thật từ STORE (0 → ẩn badge) */
+window.navBadgeCount = function(id) {
+  try {
+    const S = window.STORE; if (!S) return null;
+    if (id === 'orders')    return S.get('orders', window.ORDERS || []).length || null;
+    if (id === 'customers') return S.get('customers', window.CUSTOMERS || []).length || null;
+    if (id === 'debt')      return S.get('customers', window.CUSTOMERS || []).filter(c => (c.debt || 0) > 0).length || null;
+  } catch (e) {}
+  return null;
+};
+
 /* ============ Navigation config ============ */
 window.NAV = [
   { section: 'Vận hành', items: [
     { id: 'dashboard',  label: 'Dashboard',   icon: '📊', href: 'dashboard.html' },
-    { id: 'orders',     label: 'Đơn hàng',    icon: '📦', href: 'orders.html', badge: 142 },
-    { id: 'customers',  label: 'Khách hàng',  icon: '👥', href: 'customers.html', badge: 28 },
+    { id: 'orders',     label: 'Đơn hàng',    icon: '📦', href: 'orders.html', badge: 'dyn' },
+    { id: 'customers',  label: 'Khách hàng',  icon: '👥', href: 'customers.html', badge: 'dyn' },
     { id: 'fleet',      label: 'Xe & Tài xế', icon: '🚚', href: 'fleet.html' },
   ]},
   { section: 'Tài chính', items: [
     { id: 'accounting', label: 'Kế toán',     icon: '💰', href: 'accounting.html' },
-    { id: 'debt',       label: 'Công nợ',     icon: '📉', href: 'debt.html', badge: 7 },
+    { id: 'debt',       label: 'Công nợ',     icon: '📉', href: 'debt.html', badge: 'dyn' },
     { id: 'invoices',   label: 'Hóa đơn',     icon: '🧾', href: 'invoices.html' },
   ]},
   { section: 'Quản trị', items: [
@@ -392,7 +403,7 @@ window.renderAppShell = function(activeId, breadcrumbText) {
           ${group.items.map(item => `
             <a href="${item.href}" class="${item.id === activeId ? 'active' : ''}">
               <span class="ico">${item.icon}</span> ${item.label}
-              ${item.badge ? `<span class="badge-n">${item.badge}</span>` : ''}
+              ${(() => { const b = item.badge === 'dyn' ? window.navBadgeCount(item.id) : item.badge; return b ? `<span class="badge-n">${b}</span>` : ''; })()}
             </a>
           `).join('')}
         `).join('')}

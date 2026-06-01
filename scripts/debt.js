@@ -27,7 +27,58 @@
     return window.overdueDays(c);
   }
 
+  function renderAgingKPIs() {
+    const debtors = loadDebtors().map(c => ({ ...c, overdue: overdueDays(c) }));
+    const sum = arr => arr.reduce((s, c) => s + (c.debt || 0), 0);
+    const totalDebt = sum(debtors);
+    const overdue30 = sum(debtors.filter(c => c.overdue > 30));
+    const buckets = {
+      b1: debtors.filter(c => c.overdue <= 30),
+      b2: debtors.filter(c => c.overdue > 30 && c.overdue <= 60),
+      b3: debtors.filter(c => c.overdue > 60 && c.overdue <= 90),
+      b4: debtors.filter(c => c.overdue > 90 && c.overdue <= 180),
+      b5: debtors.filter(c => c.overdue > 180),
+    };
+    const sub = document.getElementById('debtSub');
+    if (sub) sub.textContent = `${debtors.length} khách đang nợ · tổng ${window.fmtShort(totalDebt)} ₫`
+      + (overdue30 ? ` · trong đó ${window.fmtShort(overdue30)} quá hạn > 30 ngày` : ' · không có quá hạn > 30 ngày');
+    const ag = document.querySelector('.aging');
+    if (ag) {
+      const card = (cls, lab, arr, extra) => `<div class="aging-card ${cls}"><div class="lab">${lab}</div><div class="val">${window.fmtShort(sum(arr))}</div><div class="sub">${arr.length} KH${extra ? ' · ' + extra : ''}</div></div>`;
+      ag.innerHTML =
+        card('b1', 'Trong hạn', buckets.b1, '0–30 ngày') +
+        card('b2', '31–60 ngày', buckets.b2) +
+        card('b3', '61–90 ngày', buckets.b3) +
+        card('b4', '> 90 ngày', buckets.b4) +
+        card('b5', 'Khó đòi', buckets.b5);
+    }
+    const box = document.getElementById('agingBarBox');
+    if (box) {
+      const t = totalDebt || 1;
+      const p = arr => Math.round(sum(arr) / t * 1000) / 10;
+      box.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--muted)">
+          <span>📊 Phân bố tuổi nợ</span>
+          <span>Tổng: <b style="color:var(--navy);font-size:14px">${window.fmt(totalDebt)} ₫</b></span>
+        </div>
+        <div class="aging-bar">
+          <div style="background:var(--ok);width:${p(buckets.b1)}%" title="Trong hạn"></div>
+          <div style="background:#3B82F6;width:${p(buckets.b2)}%" title="31-60 ngày"></div>
+          <div style="background:var(--warn);width:${p(buckets.b3)}%" title="61-90 ngày"></div>
+          <div style="background:#EA580C;width:${p(buckets.b4)}%" title="&gt;90 ngày"></div>
+          <div style="background:var(--danger);width:${p(buckets.b5)}%" title="Khó đòi"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">
+          <span>🟢 Trong hạn ${p(buckets.b1)}%</span>
+          <span>🔵 31–60d ${p(buckets.b2)}%</span>
+          <span>🟡 61–90d ${p(buckets.b3)}%</span>
+          <span>🟠 &gt;90d ${p(buckets.b4)}%</span>
+        </div>`;
+    }
+  }
+
   function render() {
+    renderAgingKPIs();
     const debtors = loadDebtors();
     const q = document.getElementById('qSearch').value.trim().toLowerCase();
     const b = document.getElementById('fBucket').value;
