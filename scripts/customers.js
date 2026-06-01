@@ -52,8 +52,31 @@
   const footCount = document.getElementById('footCount');
 
   /* ============ RENDER ============ */
+  function renderKPIs(all) {
+    const el = document.querySelector('.kpis');
+    if (!el) return;
+    const now = new Date(), mm = now.getMonth(), yy = now.getFullYear();
+    const inThisMonth = c => { const d = window.parseVNDate && window.parseVNDate(c.created); return d && d.getMonth() === mm && d.getFullYear() === yy; };
+    const total = all.length;
+    const newM = all.filter(inThisMonth).length;
+    const owing = all.filter(c => (c.debt || 0) > 0);
+    const overdueSum = all.reduce((s, c) => s + (c.debtOverdue || 0), 0);
+    const vip = all.filter(c => c.group === 'VIP').length;
+    const inactive = all.filter(c => c.active === false || c.group === 'Inactive').length;
+    const totalRev = all.reduce((s, c) => s + (c.revenue || 0), 0);
+    const vipRev = all.filter(c => c.group === 'VIP').reduce((s, c) => s + (c.revenue || 0), 0);
+    const vipPct = totalRev ? Math.round(vipRev / totalRev * 100) : 0;
+    el.innerHTML = `
+      <div class="kpi k-1"><div class="kpi-label">Tổng khách hàng</div><div class="kpi-value">${total}</div><div class="kpi-trend">${newM ? '+' + newM + ' trong tháng' : 'Chưa có KH mới'}</div><div class="kpi-icon">👥</div></div>
+      <div class="kpi k-2"><div class="kpi-label">Mới tháng này</div><div class="kpi-value">${newM}</div><div class="kpi-trend up">Khách phát sinh tháng ${mm + 1}</div><div class="kpi-icon">✨</div></div>
+      <div class="kpi k-3"><div class="kpi-label">Đang nợ</div><div class="kpi-value">${owing.length}</div><div class="kpi-trend ${overdueSum ? 'down' : ''}">${overdueSum ? 'Quá hạn ' + window.fmtShort(overdueSum) + ' ₫' : 'Không có quá hạn'}</div><div class="kpi-icon">⚠️</div></div>
+      <div class="kpi k-4"><div class="kpi-label">Khách VIP</div><div class="kpi-value">${vip}</div><div class="kpi-trend up">${vipPct}% doanh thu</div><div class="kpi-icon">⭐</div></div>
+      <div class="kpi k-5"><div class="kpi-label">Không hoạt động</div><div class="kpi-value">${inactive}</div><div class="kpi-trend">&gt; 90 ngày không phát sinh</div><div class="kpi-icon">💤</div></div>`;
+  }
+
   function render() {
     customers = window.STORE.get('customers', initialData);
+    renderKPIs(customers);
     const rows = customers.filter(c => quickMatch(c) && filterMatch(c) && searchMatch(c));
     rowCount.textContent = `Đang hiển thị ${rows.length} / ${customers.length} khách hàng`;
     footCount.textContent = rows.length;

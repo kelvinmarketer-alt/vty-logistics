@@ -188,7 +188,25 @@
     window.toast('✓ Đã ' + (isEdit?'cập nhật':'thêm') + ' đối tác ' + name, 'success');
   };
 
+  function renderFleetKPIs() {
+    const el = document.querySelector('.kpis');
+    if (!el) return;
+    const vs = window.STORE.get('vehicles', window.VEHICLES || []);
+    const running = vs.filter(v => v.status === 'running').length;
+    const maint = vs.filter(v => v.status === 'maintenance').length;
+    const dueReg = vs.filter(v => isRegisterUrgent(v.nextRegister)).length;
+    const cost30 = vs.reduce((s, v) => s + (v.cost30d || 0), 0);
+    const active = vs.filter(v => v.status !== 'maintenance').length;
+    el.innerHTML = `
+      <div class="kpi k-1"><div class="kpi-label">Tổng xe</div><div class="kpi-value">${vs.length}</div><div class="kpi-trend">${active} đang khai thác</div><div class="kpi-icon">🚚</div></div>
+      <div class="kpi k-2"><div class="kpi-label">Đang chạy</div><div class="kpi-value">${running}</div><div class="kpi-trend up">${running ? 'Phục vụ đơn' : 'Chưa có chuyến'}</div><div class="kpi-icon">🟢</div></div>
+      <div class="kpi k-3"><div class="kpi-label">Sắp đăng kiểm</div><div class="kpi-value">${dueReg}</div><div class="kpi-trend ${dueReg ? 'down' : ''}">${dueReg ? 'Trong 30 ngày' : 'Không có'}</div><div class="kpi-icon">⏰</div></div>
+      <div class="kpi k-4"><div class="kpi-label">Bảo dưỡng</div><div class="kpi-value">${maint}</div><div class="kpi-trend">${maint ? 'Đang sửa' : 'Không có'}</div><div class="kpi-icon">🔧</div></div>
+      <div class="kpi k-5"><div class="kpi-label">Chi phí xe / 30 ngày</div><div class="kpi-value">${window.fmtShort(cost30)}</div><div class="kpi-trend">Xăng + bảo dưỡng</div><div class="kpi-icon">⛽</div></div>`;
+  }
+
   function renderVehicles() {
+    renderFleetKPIs();
     vehicles = window.STORE.get('vehicles', window.VEHICLES || []);
     const sStat = document.getElementById('fvStatus').value;
     const sType = document.getElementById('fvType').value;

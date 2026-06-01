@@ -5,8 +5,27 @@
   let staffs = window.STORE.get('staff', window.STAFFS || []);
   let curDept = 'all';
 
+  function renderStaffKPIs() {
+    const el = document.querySelector('.kpis');
+    if (!el) return;
+    const all = window.STORE.get('staff', window.STAFFS || []);
+    const working = all.filter(s => s.status === 'active').length;
+    const off = all.length - working;
+    const kpis = all.map(s => parseInt(s.kpi, 10)).filter(n => !isNaN(n));
+    const kpiAvg = kpis.length ? Math.round(kpis.reduce((a, b) => a + b, 0) / kpis.length) : null;
+    const totalSalary = all.reduce((s, x) => s + (x.salary || 0), 0);
+    const drivers = all.filter(s => /xế/i.test(s.role || '') || s.dept === 'Vận hành').length;
+    el.innerHTML = `
+      <div class="kpi k-1"><div class="kpi-label">Tổng NV</div><div class="kpi-value">${all.length}</div><div class="kpi-trend">${all.length ? working + ' đang làm' : 'Chưa có NV'}</div><div class="kpi-icon">🧑‍💼</div></div>
+      <div class="kpi k-2"><div class="kpi-label">Đang đi làm</div><div class="kpi-value">${working}</div><div class="kpi-trend ${off ? '' : 'up'}">${off ? off + ' nghỉ' : 'Đủ quân số'}</div><div class="kpi-icon">✓</div></div>
+      <div class="kpi k-4"><div class="kpi-label">KPI TB tháng</div><div class="kpi-value">${kpiAvg !== null ? kpiAvg + '%' : '—'}</div><div class="kpi-trend">${kpiAvg !== null ? 'Trung bình NV' : 'Chưa chấm KPI'}</div><div class="kpi-icon">📈</div></div>
+      <div class="kpi k-3"><div class="kpi-label">Tổng lương CB</div><div class="kpi-value">${window.fmtShort(totalSalary)}</div><div class="kpi-trend">Lương cơ bản/tháng</div><div class="kpi-icon">💰</div></div>
+      <div class="kpi k-5"><div class="kpi-label">Tài xế / Vận hành</div><div class="kpi-value">${drivers}</div><div class="kpi-trend">→ Xem Fleet</div><div class="kpi-icon">🚚</div></div>`;
+  }
+
   function render() {
     staffs = window.STORE.get('staff', window.STAFFS || []);
+    renderStaffKPIs();
     const q = document.getElementById('qSearch').value.trim().toLowerCase();
     const st = document.getElementById('fStatus').value;
     const rows = staffs.filter(s =>

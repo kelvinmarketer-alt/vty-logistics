@@ -8,7 +8,36 @@
   let invoices = window.STORE.get('invoices', INITIAL);
   let cur = 'all';
 
+  function renderKPIs() {
+    const el = document.querySelector('.kpis');
+    if (!el) return;
+    invoices = window.STORE.get('invoices', INITIAL);
+    const now = new Date(), mm = now.getMonth(), yy = now.getFullYear();
+    const inMonth = i => { const d = window.parseVNDate && window.parseVNDate(i.date); return d && d.getMonth() === mm && d.getFullYear() === yy; };
+    const monthInv = invoices.filter(i => i.status !== 'draft' && inMonth(i));
+    const paid = invoices.filter(i => i.status === 'paid');
+    const pending = invoices.filter(i => i.status === 'pending');
+    const overdue = invoices.filter(i => i.status === 'overdue');
+    const vatDue = invoices.filter(i => i.status !== 'draft' && i.status !== 'paid').reduce((s, i) => s + (i.vat || 0), 0);
+    const monthAmt = monthInv.reduce((s, i) => s + (i.net || 0) + (i.vat || 0), 0);
+    const paidPct = invoices.filter(i => i.status !== 'draft').length ? Math.round(paid.length / invoices.filter(i => i.status !== 'draft').length * 100) : 0;
+    el.innerHTML = `
+      <div class="kpi k-1"><div class="kpi-label">HĐ tháng này</div><div class="kpi-value">${monthInv.length}</div><div class="kpi-trend up">${window.fmtShort(monthAmt)} ₫</div><div class="kpi-icon">🧾</div></div>
+      <div class="kpi k-2"><div class="kpi-label">Đã thanh toán</div><div class="kpi-value">${paid.length}</div><div class="kpi-trend up">${paidPct}%</div><div class="kpi-icon">✓</div></div>
+      <div class="kpi k-4"><div class="kpi-label">Chờ thanh toán</div><div class="kpi-value">${pending.length}</div><div class="kpi-trend">${window.fmtShort(pending.reduce((s,i)=>s+(i.net||0)+(i.vat||0),0))} ₫</div><div class="kpi-icon">⏳</div></div>
+      <div class="kpi k-3"><div class="kpi-label">Quá hạn TT</div><div class="kpi-value">${overdue.length}</div><div class="kpi-trend ${overdue.length?'down':''}">${overdue.length ? 'Cần đôn đốc' : 'Không có'}</div><div class="kpi-icon">⚠️</div></div>
+      <div class="kpi k-5"><div class="kpi-label">VAT chưa nộp</div><div class="kpi-value">${window.fmtShort(vatDue)}</div><div class="kpi-trend">Còn phải thu/nộp</div><div class="kpi-icon">📋</div></div>`;
+    const cnt = document.querySelector('.table-head .count');
+    if (cnt) cnt.textContent = `${invoices.length} hóa đơn`;
+    const chipCount = { all: invoices.length, paid: paid.length, pending: pending.length, overdue: overdue.length, draft: invoices.filter(i => i.status === 'draft').length };
+    document.querySelectorAll('.quick-chips .chip').forEach(ch => {
+      const k = ch.dataset.q, span = ch.querySelector('.cnt');
+      if (span && k in chipCount) span.textContent = chipCount[k];
+    });
+  }
+
   function render() {
+    renderKPIs();
     invoices = window.STORE.get('invoices', INITIAL);
     const rows = invoices.filter(i => cur === 'all' || i.status === cur);
     document.getElementById('invTbody').innerHTML = rows.map(i => {

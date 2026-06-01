@@ -9,7 +9,31 @@
   let entries = window.STORE.get('cashEntries', INITIAL_ENTRIES);
   let accounts = window.STORE.get('paymentAccounts', INITIAL_ACCOUNTS);
 
+  function renderKPIs() {
+    const el = document.querySelector('.kpis');
+    if (!el) return;
+    entries = window.STORE.get('cashEntries', INITIAL_ENTRIES);
+    accounts = window.STORE.get('paymentAccounts', INITIAL_ACCOUNTS);
+    const now = new Date(), mm = now.getMonth(), yy = now.getFullYear();
+    const inMonth = e => { const d = window.parseVNDate && window.parseVNDate(e.date); return d && d.getMonth() === mm && d.getFullYear() === yy; };
+    const monthE = entries.filter(inMonth);
+    const thu = monthE.filter(e => e.type === 'in').reduce((s, e) => s + (e.amount || 0), 0);
+    const chi = monthE.filter(e => e.type === 'out').reduce((s, e) => s + (e.amount || 0), 0);
+    const loi = thu - chi;
+    const bien = thu ? Math.round(loi / thu * 1000) / 10 : 0;
+    const cash = accounts.filter(a => a.kind === 'cash' && a.active !== false).reduce((s, a) => s + (a.balance || 0), 0);
+    const bank = accounts.filter(a => a.kind === 'bank' && a.active !== false).reduce((s, a) => s + (a.balance || 0), 0);
+    const M = mm + 1;
+    el.innerHTML = `
+      <div class="kpi k-1"><div class="kpi-label">Tổng thu T${M}</div><div class="kpi-value">${window.fmtShort(thu)}</div><div class="kpi-trend up">${monthE.filter(e=>e.type==='in').length} phiếu thu</div><div class="kpi-icon">📈</div></div>
+      <div class="kpi k-3"><div class="kpi-label">Tổng chi T${M}</div><div class="kpi-value">${window.fmtShort(chi)}</div><div class="kpi-trend">${monthE.filter(e=>e.type==='out').length} phiếu chi</div><div class="kpi-icon">📉</div></div>
+      <div class="kpi k-2"><div class="kpi-label">Lợi nhuận gộp T${M}</div><div class="kpi-value">${window.fmtShort(loi)}</div><div class="kpi-trend ${loi>=0?'up':'down'}">Biên ${bien}%</div><div class="kpi-icon">💰</div></div>
+      <div class="kpi k-4"><div class="kpi-label">Quỹ tiền mặt</div><div class="kpi-value">${window.fmtShort(cash)}</div><div class="kpi-trend">Tại văn phòng</div><div class="kpi-icon">💵</div></div>
+      <div class="kpi k-5"><div class="kpi-label">TK ngân hàng</div><div class="kpi-value">${window.fmtShort(bank)}</div><div class="kpi-trend">${accounts.filter(a=>a.kind==='bank'&&a.active!==false).length} tài khoản</div><div class="kpi-icon">🏦</div></div>`;
+  }
+
   function render() {
+    renderKPIs();
     entries = window.STORE.get('cashEntries', INITIAL_ENTRIES);
     const q = document.getElementById('qSearch').value.trim().toLowerCase();
     const t = document.getElementById('fType').value;
@@ -361,6 +385,7 @@
   };
 
   window.STORE.subscribe('cashEntries', render);
+  window.STORE.subscribe('paymentAccounts', renderKPIs);
   window.renderAppShell('accounting', 'Kế toán');
   ['qSearch','fType','fAccount','fFrom','fTo'].forEach(id => document.getElementById(id)?.addEventListener('input', render));
   render();

@@ -181,7 +181,71 @@
       document.getElementById('pane' + p).style.display = (p.toLowerCase() === k) ? 'block' : 'none';
     });
     if (k === 'debt') renderDebtReport();
+    if (k === 'customers') renderCustomerPane();
+    if (k === 'fleet') renderFleetPane();
   };
+
+  /* === CUSTOMER ANALYTICS (tính thật từ STORE) === */
+  function renderCustomerPane() {
+    const customers = window.STORE.get('customers', window.CUSTOMERS || []);
+    const total = customers.length;
+    const active = customers.filter(c => c.active !== false).length;
+    const inactive = total - active;
+    const retention = total ? Math.round(active / total * 100) : 0;
+    const churn = total ? Math.round(inactive / total * 100) : 0;
+    const totalRev = customers.reduce((s, c) => s + (c.revenue || 0), 0);
+    const clv = total ? Math.round(totalRev / total) : 0;
+    const el = document.querySelector('#paneCustomers .kpis');
+    if (el) el.innerHTML = `
+      <div class="kpi k-1"><div class="kpi-label">Tổng KH</div><div class="kpi-value">${total}</div><div class="kpi-trend">${active} hoạt động</div><div class="kpi-icon">👥</div></div>
+      <div class="kpi k-2"><div class="kpi-label">Tỉ lệ giữ chân</div><div class="kpi-value">${retention}%</div><div class="kpi-trend up">KH còn hoạt động</div><div class="kpi-icon">💚</div></div>
+      <div class="kpi k-3"><div class="kpi-label">Tỉ lệ churn</div><div class="kpi-value">${churn}%</div><div class="kpi-trend">${inactive} KH inactive</div><div class="kpi-icon">⚠</div></div>
+      <div class="kpi k-4"><div class="kpi-label">CLV TB</div><div class="kpi-value">${window.fmtShort(clv)}</div><div class="kpi-trend">DT/khách (lifetime)</div><div class="kpi-icon">💰</div></div>
+      <div class="kpi k-5"><div class="kpi-label">CAC TB</div><div class="kpi-value">—</div><div class="kpi-trend">Cần dữ liệu chi phí MKT</div><div class="kpi-icon">📞</div></div>`;
+    /* Biểu đồ KH theo nguồn — tính thật từ field source */
+    const bc = document.querySelector('#paneCustomers .bar-chart');
+    if (bc) {
+      const bySrc = {};
+      customers.forEach(c => { const s = c.source || 'Khác'; bySrc[s] = (bySrc[s] || 0) + 1; });
+      const entries = Object.entries(bySrc).sort((a, b) => b[1] - a[1]).slice(0, 6);
+      const colors = ['#C8102E', '#1C2D5A', '#E8A33D', '#7C3AED', '#0EA5E9', '#15803D'];
+      const max = entries.length ? entries[0][1] : 1;
+      bc.innerHTML = entries.length
+        ? entries.map(([s, n], i) => `<div class="bar" style="height:${Math.max(15, Math.round(n / max * 160))}px;background:${colors[i % colors.length]}"><div class="v">${n} KH (${total ? Math.round(n / total * 100) : 0}%)</div><div class="x">${s}</div></div>`).join('')
+        : '<div style="padding:30px;color:var(--muted)">Chưa có dữ liệu khách hàng theo nguồn.</div>';
+    }
+  }
+
+  /* === FLEET ANALYTICS === */
+  function renderFleetPane() {
+    const vehicles = window.STORE.get('vehicles', window.VEHICLES || []);
+    const el = document.querySelector('#paneFleet .kpis');
+    const mostTrips = vehicles.slice().sort((a, b) => (b.trips30d || 0) - (a.trips30d || 0))[0];
+    const totalTrips = vehicles.reduce((s, v) => s + (v.trips30d || 0), 0);
+    const totalCost = vehicles.reduce((s, v) => s + (v.cost30d || 0), 0);
+    const dash = v => v || '—';
+    if (el) el.innerHTML = `
+      <div class="kpi k-1"><div class="kpi-label">Xe chạy nhiều nhất</div><div class="kpi-value" style="font-size:18px">${mostTrips ? mostTrips.plate : '—'}</div><div class="kpi-trend">${mostTrips ? (mostTrips.trips30d || 0) + ' chuyến/30d' : 'Chưa có dữ liệu'}</div><div class="kpi-icon">🥇</div></div>
+      <div class="kpi k-2"><div class="kpi-label">Tài xế top</div><div class="kpi-value" style="font-size:18px">${mostTrips ? dash(mostTrips.lastDriverName) : '—'}</div><div class="kpi-trend up">${mostTrips ? (mostTrips.trips30d || 0) + ' chuyến' : '—'}</div><div class="kpi-icon">🧑‍✈️</div></div>
+      <div class="kpi k-4"><div class="kpi-label">Tổng chuyến 30d</div><div class="kpi-value">${totalTrips}</div><div class="kpi-trend">${vehicles.length} xe</div><div class="kpi-icon">🛣</div></div>
+      <div class="kpi k-3"><div class="kpi-label">Chi phí xe 30d</div><div class="kpi-value">${window.fmtShort(totalCost)}</div><div class="kpi-trend">Xăng + bảo dưỡng</div><div class="kpi-icon">⛽</div></div>
+      <div class="kpi k-5"><div class="kpi-label">Tổng số xe</div><div class="kpi-value">${vehicles.length}</div><div class="kpi-trend">Đội xe</div><div class="kpi-icon">🚚</div></div>`;
+    /* Bảng công suất theo nhiên liệu — cần fuelLogs + doanh thu/xe; hiển thị từ dữ liệu thật */
+    const tb = document.querySelector('#paneFleet .mini-table tbody');
+    if (tb) {
+      const rows = vehicles.map(v => {
+        const liters = (v.fuelLogs || []).reduce((s, f) => s + (f.liters || 0), 0);
+        const fuelCost = (v.fuelLogs || []).reduce((s, f) => s + (f.amount || 0), 0);
+        return { v, liters, fuelCost };
+      }).filter(r => r.liters > 0 || r.v.trips30d);
+      tb.innerHTML = rows.length
+        ? rows.sort((a, b) => (b.v.trips30d || 0) - (a.v.trips30d || 0)).map((r, i) => `
+            <tr><td><b>${i + 1}</b></td><td><b>${r.v.plate}</b> · ${r.v.type || ''}</td><td>${r.v.lastDriverName || '—'}</td>
+            <td class="num">${r.v.trips30d || 0}</td><td class="num">${r.liters ? r.liters + ' L' : '—'}</td>
+            <td class="num">${r.fuelCost ? window.fmtShort(r.fuelCost) : '—'}</td><td class="num">—</td><td class="num">—</td></tr>`).join('')
+        : `<tr><td colspan="8" style="padding:30px;text-align:center;color:var(--muted)">Chưa có dữ liệu xe/nhiên liệu. Thêm xe + nhật ký đổ xăng để xem công suất.</td></tr>`;
+    }
+  }
 
   /* === DEBT REPORT === */
   function overdueDays(c) {
@@ -359,6 +423,10 @@
   window.renderAppShell('reports', 'Báo cáo & Phân tích');
   renderChart();
   recalculate();
+  renderCustomerPane();
+  renderFleetPane();
+  window.STORE.subscribe('customers', renderCustomerPane);
+  window.STORE.subscribe('vehicles', renderFleetPane);
 
   /* Restore badge nếu có filter đã lưu */
   const desc = describeFilters(filters);
