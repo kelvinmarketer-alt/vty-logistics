@@ -2,29 +2,9 @@
    VTY Logistics — Kế toán (Full CRUD)
    ========================================================= */
 (function () {
-  const INITIAL_ENTRIES = [
-    { no:'PT-526045', date:'16/05/2026', type:'in', party:'KH004 · Shop Mẹ&Bé', desc:'COD đơn VTY-526045', account:'Tiền mặt', amount:1_250_000, staff:'Trần Lan' },
-    { no:'PT-526044', date:'16/05/2026', type:'in', party:'KH017 · Tech 88', desc:'COD đơn VTY-526044', account:'Vietcombank', amount:8_400_000, staff:'Trần Lan' },
-    { no:'PC-526010', date:'16/05/2026', type:'out', party:'Petrolimex Cầu Giấy', desc:'Đổ xăng xe 29C-99988', account:'Tiền mặt', amount:2_200_000, staff:'Phạm Hùng' },
-    { no:'PT-526040', date:'15/05/2026', type:'in', party:'KH025 · Chị Hoa', desc:'COD đơn VTY-526040', account:'MB Bank', amount:380_000, staff:'Hoàng Mai' },
-    { no:'PC-526009', date:'15/05/2026', type:'out', party:'Garage Long Biên', desc:'Bảo dưỡng xe 29C-33344', account:'Vietcombank', amount:8_400_000, staff:'Vương Luân' },
-    { no:'PT-526033', date:'15/05/2026', type:'in', party:'KH001 · An Phát', desc:'TT công nợ T4', account:'Vietcombank', amount:48_500_000, staff:'Trần Lan' },
-    { no:'PC-526008', date:'14/05/2026', type:'out', party:'NV Nguyễn Văn A', desc:'Lương tuần 1+2 T5', account:'Tiền mặt', amount:5_200_000, staff:'Vương Luân' },
-    { no:'PT-526012', date:'14/05/2026', type:'in', party:'KH014 · Chị Mai', desc:'Cước HN→HP', account:'Tiền mặt', amount:350_000, staff:'Hoàng Mai' },
-    { no:'PC-526006', date:'14/05/2026', type:'out', party:'Văn phòng phẩm Hồng Hà', desc:'Mua giấy in + hóa đơn', account:'Tiền mặt', amount:450_000, staff:'Hoàng Mai' },
-    { no:'PT-525988', date:'13/05/2026', type:'in', party:'KH002 · HN Foods', desc:'TT đơn VTY-525972', account:'Vietcombank', amount:3_200_000, staff:'Vương Luân' },
-    { no:'PC-526005', date:'13/05/2026', type:'out', party:'Bảo hiểm PVI', desc:'Phí BH xe 29C-99988', account:'Vietcombank', amount:14_800_000, staff:'Vương Luân' },
-    { no:'PT-525981', date:'12/05/2026', type:'in', party:'KH012 · Chị Hằng', desc:'Cước 8 đơn nội thành', account:'MB Bank', amount:640_000, staff:'Hoàng Mai' },
-  ];
-
-  const INITIAL_ACCOUNTS = [
-    { id:'A1', kind:'cash', name:'Quỹ tiền mặt văn phòng', detail:'Tủ sắt phòng Kế toán', balance:42_000_000, keeper:'Lê Thị Phương', active:true },
-    { id:'A2', kind:'bank', name:'Vietcombank · 1021xxxxxx', detail:'CN Cầu Giấy', balance:128_400_000, keeper:'Vương Luân', active:true },
-    { id:'A3', kind:'bank', name:'MB Bank · 0312xxxxxx', detail:'CN Hà Nội', balance:42_800_000, keeper:'Vương Luân', active:true },
-    { id:'A4', kind:'bank', name:'Techcombank · 1903xxxxxx', detail:'TK dự phòng', balance:14_800_000, keeper:'Vương Luân', active:true },
-    { id:'A5', kind:'ewallet', name:'MoMo · 0903 111 222', detail:'Thu COD KH nhỏ', balance:1_200_000, keeper:'Hoàng Mai', active:true },
-    { id:'A6', kind:'ewallet', name:'ViettelPay · 0903 111 222', detail:'Dự phòng', balance:0, keeper:'Hoàng Mai', active:false },
-  ];
+  /* Fallback khi DB trống — để rỗng cho vận hành thật. Dữ liệu thật ở Supabase. */
+  const INITIAL_ENTRIES = [];
+  const INITIAL_ACCOUNTS = [];
 
   let entries = window.STORE.get('cashEntries', INITIAL_ENTRIES);
   let accounts = window.STORE.get('paymentAccounts', INITIAL_ACCOUNTS);

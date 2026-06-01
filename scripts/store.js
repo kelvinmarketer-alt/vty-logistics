@@ -7,6 +7,26 @@
    - add/update/remove → write to cache + localStorage, push to Supabase async
    - Realtime        → khi Supabase data đổi từ user khác, pull về local
    ========================================================= */
+/* ---------------------------------------------------------
+   DỌN DEMO 1 LẦN: khi bắt đầu vận hành thật, xoá toàn bộ cache
+   localStorage demo cũ (vty_*) đúng 1 lần trên mỗi trình duyệt/máy.
+   KHÔNG đụng phiên đăng nhập Supabase (key 'sb-*') hay sessionStorage.
+   --------------------------------------------------------- */
+(function () {
+  const FLAG = 'vty_demo_purged_v1';
+  /* GIỮ lại: cờ purge + phiên đăng nhập hiện tại (tránh đăng xuất ngoài ý muốn) */
+  const KEEP = new Set([FLAG, 'vty_currentUser']);
+  try {
+    if (!localStorage.getItem(FLAG)) {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('vty_') && !KEEP.has(k))
+        .forEach(k => localStorage.removeItem(k));
+      localStorage.setItem(FLAG, new Date().toISOString());
+      console.log('%c[VTY] 🧹 Đã dọn dữ liệu demo cũ trong trình duyệt — sẵn sàng vận hành thật', 'color:#15803D;font-weight:bold');
+    }
+  } catch (e) { console.warn('[VTY purge]', e); }
+})();
+
 (function () {
   const PREFIX = 'vty_';
   const _data = {};
