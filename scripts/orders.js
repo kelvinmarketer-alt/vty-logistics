@@ -92,61 +92,54 @@
 
     if (!rows.length) {
       document.getElementById('tbody').innerHTML =
-        `<tr><td colspan="11" style="padding:40px;text-align:center;color:var(--muted)">Không có đơn nào khớp.</td></tr>`;
+        `<div style="padding:40px;text-align:center;color:var(--muted)">Không có đơn nào khớp.</div>`;
       return;
     }
 
     document.getElementById('tbody').innerHTML = rows.map(o => {
-      const st = STATUS[o.status] || STATUS.confirmed;
       const stOpts = Object.keys(STATUS).map(k =>
         `<option value="${k}"${k===o.status?' selected':''}>${STATUS[k].icon} ${STATUS[k].label}</option>`).join('');
       const svc = SVC[o.serviceType] || {icon:'❓', label:o.serviceType, color:'#666'};
       const tm = o.transportMode ? TM[o.transportMode] : null;
-      return `<tr data-code="${o.code}">
-        <td onclick="event.stopPropagation()"><input type="checkbox" class="row-chk" data-code="${o.code}" style="width:16px;height:16px;cursor:pointer"></td>
-        <td><b style="color:var(--navy)">${o.code}</b>
-            <div style="margin-top:2px">
-              <span class="svc-tag" style="background:${svc.color}20;color:${svc.color}">${svc.icon} ${svc.label}</span>
-              ${tm ? `<span class="tm-tag">${tm.icon} ${tm.label}</span>` : ''}
-            </div></td>
-        <td class="hide-sm" style="font-size:12px;color:var(--muted)">${o.date}</td>
-        <td>
-          <div style="font-weight:600">${o.custName}</div>
-          <div style="font-size:11.5px;color:var(--muted)">${o.cust} · ${o.staff}</div>
-        </td>
-        <td class="hide-md" style="font-size:12px">${o.pickup.split(',')[0]} → ${o.drop.split(',')[0]}</td>
-        <td class="hide-md" style="font-size:12px">${o.qty} ${o.unit.toLowerCase()}${o.weight ? ' · '+o.weight+'kg' : ''}</td>
-        <td class="num">${(() => {
-            const p = payInfo(o);
-            let line = '';
-            if (p.due > 0 && p.remaining > 0 && p.paid > 0)
-              line = `<div style="font-size:10.5px;color:var(--muted);margin-top:2px">Đã thu ${window.fmt(p.paid)}<br>Còn <b style="color:var(--danger)">${window.fmt(p.remaining)}</b></div>`;
-            else if (p.due > 0 && p.paid === 0)
-              line = `<div style="font-size:10.5px;color:var(--danger);margin-top:2px">Còn ${window.fmt(p.remaining)}</div>`;
-            return `<div style="font-weight:600">${window.fmt(o.freight)}</div>
-              <div style="margin-top:3px"><span style="display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:${p.bg};color:${p.color}">${p.icon} ${p.label}</span></div>
-              ${line}`;
-          })()}</td>
-        <td class="num hide-md">${o.cod ? window.fmt(o.cod) : '—'}</td>
-        <td class="hide-md" style="font-size:12px">
-          <div>${o.driverName}${o.external?' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>':''}</div>
-          <div style="color:var(--muted);font-size:11px">${o.vehicle}${o.external && o.partnerCost?' · '+window.fmtShort(o.partnerCost)+'đ':''}</div>
-        </td>
-        <td onclick="event.stopPropagation()">
-          <select class="status-pill st-${o.status}" title="Đổi trạng thái" onchange="window.onRowStatusChange('${o.code}', this.value)" style="border:0;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;padding:3px 6px;border-radius:999px">${stOpts}</select>
-          ${(() => { const ls = loadState(o); return ls ? `<div style="margin-top:4px"><span style="display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:${ls.bg};color:${ls.fg}">${ls.label}</span></div>` : ''; })()}
-        </td>
-        <td onclick="event.stopPropagation()">
-          <div class="row-actions">
+      const p = payInfo(o);
+      const ls = loadState(o);
+      const payExtra = (p.due > 0 && p.remaining > 0 && p.paid > 0)
+          ? `<span style="font-size:12px;color:var(--muted)">Đã thu ${window.fmt(p.paid)} · Còn <b style="color:var(--danger)">${window.fmt(p.remaining)}</b></span>`
+        : (p.due > 0 && p.paid === 0)
+          ? `<span style="font-size:12px;color:var(--danger)">Còn ${window.fmt(p.remaining)}</span>` : '';
+      return `<div class="order-card" data-code="${o.code}">
+        <div class="oc-head">
+          <input type="checkbox" class="row-chk" data-code="${o.code}" onclick="event.stopPropagation()" style="width:16px;height:16px;cursor:pointer">
+          <b style="color:var(--navy);font-size:15px">${o.code}</b>
+          <span class="svc-tag" style="background:${svc.color}20;color:${svc.color}">${svc.icon} ${svc.label}</span>
+          ${tm ? `<span class="tm-tag">${tm.icon} ${tm.label}</span>` : ''}
+          <span style="font-size:11.5px;color:var(--muted)">🕒 ${o.date}</span>
+          <div style="flex:1"></div>
+          <span onclick="event.stopPropagation()"><select class="status-pill st-${o.status}" title="Đổi trạng thái" onchange="window.onRowStatusChange('${o.code}', this.value)" style="border:0;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;padding:3px 8px;border-radius:999px">${stOpts}</select></span>
+          ${ls ? `<span style="font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:${ls.bg};color:${ls.fg}">${ls.label}</span>` : ''}
+        </div>
+        <div class="oc-body">
+          <div>👤 <b>${o.custName || '—'}</b> <span style="color:var(--muted)">${o.cust ? '(' + o.cust + ' · ' + o.staff + ')' : ''}</span></div>
+          <div>🚏 ${(o.pickup||'').split(',')[0] || '—'} → ${(o.drop||'').split(',')[0] || '—'}</div>
+          <div>📦 ${o.qty || 0} ${(o.unit||'').toLowerCase()}${o.weight ? ' · ' + o.weight + 'kg' : ''}</div>
+          <div>🚚 ${o.vehicle || '<span style="color:var(--muted)">chưa xếp xe</span>'}${o.driverName ? ' · ' + o.driverName : ''}${o.external ? ' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>' : ''}</div>
+        </div>
+        <div class="oc-foot">
+          <span><span style="color:var(--muted);font-size:11px">Cước</span> <b>${window.fmt(o.freight)}</b></span>
+          <span style="font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:${p.bg};color:${p.color}">${p.icon} ${p.label}</span>
+          ${payExtra}
+          ${o.cod ? `<span><span style="color:var(--muted);font-size:11px">COD</span> <b>${window.fmt(o.cod)}</b></span>` : ''}
+          <div style="flex:1"></div>
+          <div class="row-actions" onclick="event.stopPropagation()">
             <button title="In phiếu" data-act="print" data-code="${o.code}">🖨</button>
             <button title="Sửa" data-act="edit" data-code="${o.code}">✏️</button>
             <button title="Hủy đơn" data-act="cancel" data-code="${o.code}" style="color:var(--danger)" ${o.status==='cancelled'||o.status==='reconciled'?'disabled':''}>🗑</button>
           </div>
-        </td>
-      </tr>`;
+        </div>
+      </div>`;
     }).join('');
 
-    document.querySelectorAll('#tbody tr[data-code]').forEach(tr => {
+    document.querySelectorAll('#tbody .order-card[data-code]').forEach(tr => {
       tr.onclick = () => openOrder(tr.dataset.code);
     });
     /* Chọn hàng loạt */
