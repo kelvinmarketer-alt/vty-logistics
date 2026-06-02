@@ -22,7 +22,8 @@
   function payInfo(o) {
     const freight = o.freight || 0;
     const transfer = o.transferFee || 0;
-    const due = freight + transfer;
+    const lastMile = o.lastMileMode === 'delivery' ? (o.lastMileFee || 0) : 0;
+    const due = freight + transfer + lastMile;
     const paid = o.paidAmount || 0;
     const remaining = Math.max(0, due - paid);
     let cls, label, icon;
@@ -32,7 +33,7 @@
     else                 { cls = 'danger'; label = 'Chưa thu';       icon = '⏳'; }
     const color = cls === 'ok' ? 'var(--ok)' : cls === 'warn' ? 'var(--warn)' : cls === 'danger' ? 'var(--danger)' : 'var(--muted)';
     const bg = cls === 'ok' ? '#DCFCE7' : cls === 'warn' ? '#FEF3C7' : cls === 'danger' ? '#FEE2E2' : '#F3F4F6';
-    return { freight, transfer, due, paid, remaining, cls, label, icon, color, bg };
+    return { freight, transfer, lastMile, due, paid, remaining, cls, label, icon, color, bg };
   }
   window.orderPayInfo = payInfo;
 
@@ -404,6 +405,22 @@
     const o = orders.find(x => x.code === code); if (o) o.codCollected = !!checked;
   };
 
+  /* ===== Giao chặng cuối (last-mile) ===== */
+  window.setLastMile = function (code, mode) {
+    window.STORE.update('orders', code, { lastMileMode: mode });
+    const o = orders.find(x => x.code === code); if (o) o.lastMileMode = mode;
+    window.openOrder(code); render();
+  };
+  window.saveLastMile = function (code) {
+    const fee = parseInt(document.getElementById('lmFee').value, 10) || 0;
+    window.STORE.update('orders', code, {
+      lastMileMode: 'delivery', lastMileFee: fee,
+      lastMileDriver: window.formVal('#lmDriver'), lastMileAddr: window.formVal('#lmAddr'),
+    });
+    window.toast('✓ Đã lưu giao chặng cuối · phí ' + window.fmt(fee) + ' ₫ cộng vào cước', 'success');
+    window.openOrder(code); render();
+  };
+
   window.exportOrders = function () {
     orders = window.STORE.get('orders', window.ORDERS || []);
     const rows = orders.filter(match);
@@ -562,6 +579,7 @@
       <div style="padding:4px 14px;background:#FAFAFB;border:1px solid var(--line);border-radius:10px">
         ${row('Cước vận chuyển', window.fmt(p.freight) + ' ₫', true)}
         ${p.transfer ? row('Tiền trung chuyển', window.fmt(p.transfer) + ' ₫') : ''}
+        ${p.lastMile ? row('Phí giao tận nhà (chặng cuối)', window.fmt(p.lastMile) + ' ₫') : ''}
         ${row('COD (thu hộ khách)', o.cod ? window.fmt(o.cod) + ' ₫' : '—')}
         ${row('Hình thức', o.payBy || '—')}
         ${row('Đã trả', window.fmt(p.paid) + ' ₫', false, 'var(--ok)')}
@@ -579,6 +597,24 @@
         <input type="checkbox" ${o.codCollected ? 'checked' : ''} onchange="window.markCod('${o.code}', this.checked)" style="width:16px;height:16px">
         Đã thu COD <b>${window.fmt(o.cod)} ₫</b> hộ người gửi ${o.codCollected ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--danger)">(chưa thu)</span>'}
       </label>` : ''}`;
+
+    /* ===== Giao chặng cuối (last-mile): khách tự lấy / giao tận nhà + phí ===== */
+    const lm = o.lastMileMode || '';
+    document.getElementById('lastMileBlock').innerHTML = `
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <button class="btn btn-sm ${lm === 'pickup' ? 'btn-primary' : 'btn-ghost'}" onclick="window.setLastMile('${o.code}','pickup')">🏬 Khách tự lấy tại kho</button>
+        <button class="btn btn-sm ${lm === 'delivery' ? 'btn-primary' : 'btn-ghost'}" onclick="window.setLastMile('${o.code}','delivery')">🛵 Giao tận nhà</button>
+        ${lm ? `<button class="btn btn-sm btn-ghost" onclick="window.setLastMile('${o.code}','')">✕ Bỏ chọn</button>` : ''}
+      </div>
+      ${lm === 'delivery' ? `
+        <div class="form-row">
+          <div><label>Phí giao tận nhà (₫)</label><input id="lmFee" type="number" value="${o.lastMileFee || 0}"></div>
+          <div><label>Tài xế / xe giao nội thành</label><input id="lmDriver" value="${(o.lastMileDriver || '').replace(/"/g, '&quot;')}" placeholder="Tên tài xế giao"></div>
+        </div>
+        <div class="form-row wide"><label>Địa chỉ giao tận nhà</label><input id="lmAddr" value="${(o.lastMileAddr || '').replace(/"/g, '&quot;')}" placeholder="Số nhà, đường, phường, quận"></div>
+        <button class="btn btn-primary btn-sm" onclick="window.saveLastMile('${o.code}')">💾 Lưu chặng cuối (phí cộng vào cước)</button>`
+      : lm === 'pickup' ? `<div style="font-size:12.5px;color:var(--ok);padding:6px 0">✓ Khách tự ra kho lấy hàng — không phát sinh phí giao.</div>`
+      : `<div style="font-size:12.5px;color:var(--muted);padding:6px 0">Khi hàng về kho đích, chọn: khách tự lấy hay giao tận nhà (phát sinh phí giao chặng cuối).</div>`}`;
 
     /* Pill trạng thái thu tiền trên đầu drawer (cạnh trạng thái đơn) */
     document.getElementById('dMeta').innerHTML += `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:${p.bg};color:${p.color}">${p.icon} ${p.label}</span>`;
