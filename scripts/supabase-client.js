@@ -122,10 +122,13 @@
     const m = FIELD_MAP[table]?.from || {};
     const result = {};
     for (const k of Object.keys(obj)) {
+      if (k === 'doc') continue;
       const newKey = m[k] || k;
       if (newKey === null) continue;
       result[newKey] = obj[k];
     }
+    /* doc (jsonb) lưu nguyên object app → khôi phục đầy đủ field, không mất gì */
+    if (obj.doc && typeof obj.doc === 'object') Object.assign(result, obj.doc);
     return result;
   }
 
@@ -158,9 +161,11 @@
       return data.map(r => mapFrom(table, r));
     },
 
-    /* Insert 1 record — TỰ THÍCH ỨNG: nếu cột không tồn tại (PGRST204) thì bỏ cột đó + thử lại */
+    /* Insert 1 record — TỰ THÍCH ỨNG: nếu cột không tồn tại (PGRST204) thì bỏ cột đó + thử lại.
+       doc (jsonb) lưu nguyên object → không mất field nào dù bảng thiếu cột. */
     async insert(table, record) {
       let mapped = mapTo(table, record);
+      try { mapped.doc = JSON.parse(JSON.stringify(record)); } catch (e) {}
       for (let attempt = 0; attempt < 40; attempt++) {
         const { data, error } = await client.from(table).insert(mapped).select().single();
         if (!error) { window.__sbLastError = null; return mapFrom(table, data); }
@@ -171,9 +176,11 @@
       return null;
     },
 
-    /* Update theo id — TỰ THÍCH ỨNG bỏ cột không tồn tại */
-    async update(table, id, patch, idColumn = 'id') {
+    /* Update theo id — TỰ THÍCH ỨNG bỏ cột không tồn tại.
+       fullRecord (object đầy đủ sau merge) → ghi vào doc để không mất field. */
+    async update(table, id, patch, idColumn = 'id', fullRecord) {
       let mapped = mapTo(table, patch);
+      if (fullRecord) { try { mapped.doc = JSON.parse(JSON.stringify(fullRecord)); } catch (e) {} }
       for (let attempt = 0; attempt < 40; attempt++) {
         const { data, error } = await client.from(table).update(mapped).eq(idColumn, id).select().single();
         if (!error) { window.__sbLastError = null; return mapFrom(table, data); }

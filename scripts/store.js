@@ -180,7 +180,7 @@
         /* Push to Supabase */
         if (isSupabaseMode() && TABLE_MAP[key]) {
           const idCol = ID_COLUMN[key] || (arr[i].code ? 'code' : 'id');
-          window.SB_DATA.update(TABLE_MAP[key], identifier, patch, idCol)
+          window.SB_DATA.update(TABLE_MAP[key], identifier, patch, idCol, arr[i])
             .catch(e => console.warn(`[STORE update ${key} → SB]`, e));
         }
         return arr[i];
