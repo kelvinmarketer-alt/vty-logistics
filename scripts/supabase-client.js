@@ -142,7 +142,8 @@
     async insert(table, record) {
       const mapped = mapTo(table, record);
       const { data, error } = await client.from(table).insert(mapped).select().single();
-      if (error) { console.error('[SB insert]', table, error); return null; }
+      if (error) { window.__sbLastError = error; console.error('[SB insert]', table, error); return null; }
+      window.__sbLastError = null;
       return mapFrom(table, data);
     },
 

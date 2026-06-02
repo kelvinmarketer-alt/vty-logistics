@@ -156,7 +156,11 @@
       if (isSupabaseMode() && TABLE_MAP[key]) {
         window.SB_DATA.insert(TABLE_MAP[key], item)
           .then(res => {
-            if (!res) window.toast?.('⚠ CHƯA lưu lên server (' + key + '). Dữ liệu chỉ ở máy này — kiểm tra mạng/đăng nhập rồi thử lại.', 'danger');
+            if (!res) {
+              const e = window.__sbLastError;
+              const detail = e ? ` — LỖI [${e.code || '?'}] ${e.message || e}` : '';
+              window.toast?.('⚠ CHƯA lưu server (' + key + ')' + detail, 'danger');
+            }
           })
           .catch(e => {
             console.warn(`[STORE add ${key} → SB]`, e);
