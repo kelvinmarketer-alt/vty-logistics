@@ -49,17 +49,21 @@
   function capToKg(cap, unit) {
     return cap && /t/i.test(unit || '') && !/kg/i.test(unit || '') ? cap * 1000 : (cap || 0);
   }
-  /* Cho xe của đối tác khởi chạy (đơn chờ → Đang giao) */
+  /* Cho 1 xe (theo biển số) khởi chạy: đơn chờ (confirmed/pickup) → Đang giao */
+  window.runVehicle = function (plate, onDone) {
+    if (!plate) { window.toast('Xe chưa có biển số', 'warn'); return; }
+    const ords = window.STORE.get('orders', window.ORDERS || []);
+    const list = ords.filter(o => o.vehicle === plate && (o.status === 'confirmed' || o.status === 'pickup'));
+    if (!list.length) { window.toast('Xe ' + plate + ' chưa có đơn chờ chạy', 'warn'); return; }
+    if (!confirm(`Cho xe ${plate} khởi chạy?\n${list.length} đơn sẽ chuyển sang "Đang giao".`)) return;
+    list.forEach(o => window.STORE.update('orders', o.code, { status: 'transit' }));
+    window.toast(`🚚 ${plate} khởi chạy · ${list.length} đơn → Đang giao`, 'success');
+    (onDone || (() => {}))();
+  };
   window.runPartnerVehicle = function (partnerId) {
     const p = (window.STORE.get('partners', []) || []).find(x => x.id === partnerId);
     if (!p || !p.vehiclePlate) { window.toast('Đối tác chưa có biển số xe', 'warn'); return; }
-    const ords = window.STORE.get('orders', window.ORDERS || []);
-    const list = ords.filter(o => o.vehicle === p.vehiclePlate && (o.status === 'confirmed' || o.status === 'pickup'));
-    if (!list.length) { window.toast('Xe ' + p.vehiclePlate + ' chưa có đơn chờ chạy', 'warn'); return; }
-    if (!confirm(`Cho xe ${p.vehiclePlate} (${p.name}) khởi chạy?\n${list.length} đơn sẽ chuyển sang "Đang giao".`)) return;
-    list.forEach(o => window.STORE.update('orders', o.code, { status: 'transit' }));
-    window.toast(`🚚 ${p.vehiclePlate} khởi chạy · ${list.length} đơn → Đang giao`, 'success');
-    renderPartners();
+    window.runVehicle(p.vehiclePlate, renderPartners);
   };
 
   function renderPartners() {
@@ -260,6 +264,17 @@
       const fsColor = fs.cls === 'ok' ? 'var(--ok)'
                     : fs.cls === 'warn' ? 'var(--warn)'
                     : fs.cls === 'danger' ? 'var(--danger)' : 'var(--muted)';
+      const capKg = capToKg(v.cap, v.capUnit);
+      const ld = vehicleLoad(v.plate);
+      const pct = capKg ? Math.min(100, Math.round(ld.kg / capKg * 100)) : 0;
+      const full = capKg && pct >= 100;
+      const barColor = full ? 'var(--danger)' : pct >= 70 ? 'var(--ok)' : 'var(--warn)';
+      const hasWaiting = (window.STORE.get('orders', window.ORDERS || []) || []).some(o => o.vehicle === v.plate && (o.status === 'confirmed' || o.status === 'pickup'));
+      const loadBlock = ld.count
+        ? `<div class="row" style="font-weight:600">📦 ${ld.count} đơn · ${ld.kg}kg${capKg ? ' / ' + capKg + 'kg' : ''} ${ld.running ? '<span style="color:#7C3AED">· 🚚 Đang chạy</span>' : full ? '<span style="color:var(--danger)">· 🔴 Đầy</span>' : ''}</div>
+           ${capKg ? `<div style="height:7px;background:var(--line);border-radius:99px;overflow:hidden;margin:3px 0 4px"><div style="height:100%;width:${pct}%;background:${barColor}"></div></div><div style="font-size:10.5px;color:${full ? 'var(--danger)' : 'var(--muted)'};font-weight:${full ? 700 : 400}">${pct}% sức chứa${full ? ' · QUÁ TẢI' : ''}</div>` : ''}
+           ${hasWaiting ? `<button onclick="event.stopPropagation();window.runVehicle('${v.plate}')" class="btn btn-sm btn-primary" style="padding:3px 10px;font-size:11px;margin-top:5px">🚀 Khởi chạy ${ld.count} đơn</button>` : ''}`
+        : `<div class="row" style="color:var(--muted-2)">— Chưa có đơn (rảnh) —</div>`;
       return `<div class="v-card" data-id="${v.id}">
         <div class="v-head">
           <div class="v-status-dot ${v.status}"></div>
@@ -270,7 +285,7 @@
         <div class="v-meta">
           <div class="row">🚛 <b>${v.type}</b> · ${v.cap}${v.capUnit}</div>
           <div class="row">📍 ${v.currentRoute}</div>
-          ${v.currentOrder ? `<div class="row">📦 ${v.currentOrder}</div>` : `<div class="row" style="color:var(--muted-2)">— Không có đơn —</div>`}
+          ${loadBlock}
           <div class="row" style="color:${fsColor};font-weight:600">⛽ ${fs.label}</div>
         </div>
         <div class="v-driver">
