@@ -107,8 +107,7 @@
             <div style="margin-top:2px">
               <span class="svc-tag" style="background:${svc.color}20;color:${svc.color}">${svc.icon} ${svc.label}</span>
               ${tm ? `<span class="tm-tag">${tm.icon} ${tm.label}</span>` : ''}
-            </div>
-            ${(() => { const ls = loadState(o); return ls ? `<div style="margin-top:3px"><span style="display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:${ls.bg};color:${ls.fg}">${ls.label}</span></div>` : ''; })()}</td>
+            </div></td>
         <td class="hide-sm" style="font-size:12px;color:var(--muted)">${o.date}</td>
         <td>
           <div style="font-weight:600">${o.custName}</div>
@@ -134,10 +133,10 @@
         </td>
         <td onclick="event.stopPropagation()">
           <select class="status-pill st-${o.status}" title="Đổi trạng thái" onchange="window.onRowStatusChange('${o.code}', this.value)" style="border:0;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;padding:3px 6px;border-radius:999px">${stOpts}</select>
+          ${(() => { const ls = loadState(o); return ls ? `<div style="margin-top:4px"><span style="display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:${ls.bg};color:${ls.fg}">${ls.label}</span></div>` : ''; })()}
         </td>
         <td onclick="event.stopPropagation()">
           <div class="row-actions">
-            <button title="Chuyển trạng thái kế tiếp" data-act="next" data-code="${o.code}" ${o.status==='reconciled'||o.status==='cancelled'?'disabled':''}>▶</button>
             <button title="In phiếu" data-act="print" data-code="${o.code}">🖨</button>
             <button title="Sửa" data-act="edit" data-code="${o.code}">✏️</button>
             <button title="Hủy đơn" data-act="cancel" data-code="${o.code}" style="color:var(--danger)" ${o.status==='cancelled'||o.status==='reconciled'?'disabled':''}>🗑</button>
