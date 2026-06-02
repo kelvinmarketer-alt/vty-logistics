@@ -36,6 +36,14 @@
   }
   window.orderPayInfo = payInfo;
 
+  /* Trạng thái xếp xe của đơn: treo (chưa xếp) / đã xếp (chờ chạy) / đang chạy */
+  function loadState(o) {
+    if (['delivered', 'reconciled', 'cancelled'].includes(o.status)) return null;
+    if (o.status === 'transit') return { label: '🚚 Đang chạy', bg: '#EDE9FE', fg: '#7C3AED' };
+    if (!o.vehicle) return { label: '⚠️ Treo (chưa xếp xe)', bg: '#FEF3C7', fg: '#B45309' };
+    return { label: '📋 Đã xếp xe', bg: '#DBEAFE', fg: '#1D4ED8' };
+  }
+
   function renderPipeline() {
     const counts = {};
     orders.forEach(o => counts[o.status] = (counts[o.status]||0) + 1);
@@ -99,7 +107,8 @@
             <div style="margin-top:2px">
               <span class="svc-tag" style="background:${svc.color}20;color:${svc.color}">${svc.icon} ${svc.label}</span>
               ${tm ? `<span class="tm-tag">${tm.icon} ${tm.label}</span>` : ''}
-            </div></td>
+            </div>
+            ${(() => { const ls = loadState(o); return ls ? `<div style="margin-top:3px"><span style="display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:${ls.bg};color:${ls.fg}">${ls.label}</span></div>` : ''; })()}</td>
         <td class="hide-sm" style="font-size:12px;color:var(--muted)">${o.date}</td>
         <td>
           <div style="font-weight:600">${o.custName}</div>
@@ -247,33 +256,43 @@
     if (!codes.length) { window.toast('Chưa chọn đơn nào', 'warn'); return; }
     const vehicles = window.STORE.get('vehicles', window.VEHICLES || []);
     const drivers = window.STORE.get('drivers', window.DRIVERS || []);
-    const vList = vehicles.map(v => `<option value="${(v.plate || '').replace(/"/g, '&quot;')}">`).join('');
-    const dList = drivers.map(d => `<option value="${(d.name || '').replace(/"/g, '&quot;')}">`).join('');
+    const vOpts = vehicles.map(v => `<option value="${(v.plate || '').replace(/"/g, '&quot;')}">${v.plate}${v.type ? ' · ' + v.type : ''}${v.cap ? ' · tải ' + v.cap + (v.capUnit || '') : ''}</option>`).join('');
+    const dOpts = drivers.map(d => `<option value="${(d.name || '').replace(/"/g, '&quot;')}">${d.name}${d.code ? ' · ' + d.code : ''}</option>`).join('');
+    const noVeh = !vehicles.length;
     window.openModal(`🚚 Gán xe / tài xế cho ${codes.length} đơn`, `
-      <div class="form-row">
-        <div><label>Xe / biển số (gõ tự do được)</label>
-          <input id="baVehicle" list="baVehicleList" placeholder="VD: 29C-12345 / cont 40ft" autocomplete="off">
-          <datalist id="baVehicleList">${vList}</datalist></div>
-        <div><label>Tài xế</label>
-          <input id="baDriver" list="baDriverList" placeholder="Tên tài xế" autocomplete="off">
-          <datalist id="baDriverList">${dList}</datalist></div>
-      </div>
-      <label style="display:flex;align-items:center;gap:7px;font-size:13px;margin-top:6px;cursor:pointer">
-        <input type="checkbox" id="baExternal" style="width:16px;height:16px"> Xe đối tác ngoài (thuê container)
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px;margin-bottom:12px;cursor:pointer">
+        <input type="checkbox" id="baExternal" onchange="window._baToggleExt()" style="width:16px;height:16px"> Xe đối tác ngoài (thuê container — gõ biển số tay)
       </label>
-      <div style="font-size:12px;color:var(--muted);margin-top:8px">Gán cùng 1 xe cho <b>${codes.length}</b> đơn → 1 xe chở nhiều đơn (chở ghép). Để trống ô nào thì giữ nguyên ô đó.</div>
+      <div class="form-row">
+        <div><label>Xe (từ Đội xe)</label>
+          <select id="baVehicleSel">${noVeh ? '<option value="">(Đội xe trống — thêm xe ở mục Xe & Tài xế)</option>' : '<option value="">— Chọn xe —</option>' + vOpts}</select>
+          <input id="baVehicleText" placeholder="VD: 29C-12345 / cont 40ft" autocomplete="off" style="display:none;width:100%;box-sizing:border-box"></div>
+        <div><label>Tài xế (từ Đội xe)</label>
+          <select id="baDriverSel"><option value="">— Chọn tài xế —</option>${dOpts}</select>
+          <input id="baDriverText" placeholder="Tên tài xế (gõ tay)" autocomplete="off" style="display:none;width:100%;box-sizing:border-box"></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">Gán cùng 1 xe cho <b>${codes.length}</b> đơn → 1 xe chở nhiều đơn. <b>Chọn xe nội bộ</b> (có tải trọng) để theo dõi % sức chứa; xe ngoài thì tick ô trên.</div>
     `, {
       footer: `<button class="btn btn-ghost" onclick="closeModal()">Hủy</button>
                <button class="btn btn-primary" onclick="window._baApply()">💾 Gán xe</button>`
     });
+    window._baToggleExt = () => {
+      const ext = document.getElementById('baExternal').checked;
+      document.getElementById('baVehicleSel').style.display = ext ? 'none' : '';
+      document.getElementById('baVehicleText').style.display = ext ? '' : 'none';
+      document.getElementById('baDriverSel').style.display = ext ? 'none' : '';
+      document.getElementById('baDriverText').style.display = ext ? '' : 'none';
+    };
     window._baApply = () => {
-      const veh = window.formVal('#baVehicle'), drv = window.formVal('#baDriver');
-      const ext = document.getElementById('baExternal')?.checked;
-      if (!veh && !drv) { window.toast('Nhập xe hoặc tài xế', 'warn'); return; }
-      const patch = {};
+      const ext = document.getElementById('baExternal').checked;
+      const veh = ext ? window.formVal('#baVehicleText') : window.formVal('#baVehicleSel');
+      let drv = ext ? window.formVal('#baDriverText') : window.formVal('#baDriverSel');
+      if (!veh && !drv) { window.toast('Chọn/nhập xe hoặc tài xế', 'warn'); return; }
+      /* Xe nội bộ chưa chọn tài xế → lấy tài xế mặc định của xe */
+      if (!ext && veh && !drv) { const v = vehicles.find(x => x.plate === veh); if (v && v.lastDriverName) drv = v.lastDriverName; }
+      const patch = { external: !!ext };
       if (veh) patch.vehicle = veh;
       if (drv) patch.driverName = drv;
-      patch.external = !!ext;
       codes.forEach(code => window.STORE.update('orders', code, patch));
       window.closeModal();
       window.toast(`✓ Đã gán ${codes.length} đơn${veh ? ' → ' + veh : ''}`, 'success');
