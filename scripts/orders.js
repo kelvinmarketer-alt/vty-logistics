@@ -18,6 +18,24 @@
   };
   const STEPS = ['confirmed','pickup','transit','delivered','reconciled'];
 
+  /* Trạng thái thu tiền cước của đơn (VTY thu = cước + trung chuyển; COD là thu hộ, không tính) */
+  function payInfo(o) {
+    const freight = o.freight || 0;
+    const transfer = o.transferFee || 0;
+    const due = freight + transfer;
+    const paid = o.paidAmount || 0;
+    const remaining = Math.max(0, due - paid);
+    let cls, label, icon;
+    if (due <= 0)        { cls = 'muted';  label = 'Không thu cước'; icon = '—'; }
+    else if (paid >= due){ cls = 'ok';     label = 'Đã thu đủ';      icon = '✓'; }
+    else if (paid > 0)   { cls = 'warn';   label = 'Thu một phần';   icon = '◐'; }
+    else                 { cls = 'danger'; label = 'Chưa thu';       icon = '⏳'; }
+    const color = cls === 'ok' ? 'var(--ok)' : cls === 'warn' ? 'var(--warn)' : cls === 'danger' ? 'var(--danger)' : 'var(--muted)';
+    const bg = cls === 'ok' ? '#DCFCE7' : cls === 'warn' ? '#FEF3C7' : cls === 'danger' ? '#FEE2E2' : '#F3F4F6';
+    return { freight, transfer, due, paid, remaining, cls, label, icon, color, bg };
+  }
+  window.orderPayInfo = payInfo;
+
   function renderPipeline() {
     const counts = {};
     orders.forEach(o => counts[o.status] = (counts[o.status]||0) + 1);
@@ -89,7 +107,8 @@
         </td>
         <td class="hide-md" style="font-size:12px">${o.pickup.split(',')[0]} → ${o.drop.split(',')[0]}</td>
         <td class="hide-md" style="font-size:12px">${o.qty} ${o.unit.toLowerCase()}${o.weight ? ' · '+o.weight+'kg' : ''}</td>
-        <td class="num">${window.fmt(o.freight)}</td>
+        <td class="num">${window.fmt(o.freight)}
+            ${(() => { const p = payInfo(o); return `<div style="margin-top:3px"><span style="display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:${p.bg};color:${p.color}">${p.icon} ${p.label}</span></div>`; })()}</td>
         <td class="num hide-md">${o.cod ? window.fmt(o.cod) : '—'}</td>
         <td class="hide-md" style="font-size:12px">
           <div>${o.driverName}${o.external?' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>':''}</div>
@@ -342,20 +361,44 @@
     const recvTxt   = o.receiverName ? `${o.receiverName}${o.receiverPhone?' · '+o.receiverPhone:''} — ` : '';
     document.getElementById('iPickup').textContent = senderTxt + o.pickup;
     document.getElementById('iDrop').textContent   = recvTxt + o.drop;
-    document.getElementById('iPayBy').textContent  = o.payBy;
-    document.getElementById('iTotal').textContent  = window.fmtVND(o.freight + (o.cod||0));
     document.getElementById('iNote').textContent   = o.note || '(không có)';
-    document.getElementById('iDriver').innerHTML  = o.driverName + (o.external?' <span class="alert-badge warn" style="font-size:10px;margin-left:6px">🤝 Đối tác ngoài</span>':'');
-    document.getElementById('iVehicle').textContent = o.vehicle;
-    /* Hiển thị thêm thông tin chi phí đối tác trong tổng thu */
-    if (o.external && o.partnerCost) {
-      const total = o.freight + (o.cod||0);
-      document.getElementById('iTotal').innerHTML = `${window.fmtVND(total)}
-        <div style="font-size:11px;color:var(--muted);font-weight:400;margin-top:4px">
-          Chi phí thuê: -${window.fmt(o.partnerCost)} ₫ ·
-          <b style="color:${o.profit>0?'var(--ok)':'var(--danger)'}">LN: ${o.profit>0?'+':''}${window.fmt(o.profit)} ₫</b>
-        </div>`;
-    }
+    document.getElementById('iDriver').innerHTML  = o.driverName ? (o.driverName + (o.external?' <span class="alert-badge warn" style="font-size:10px;margin-left:6px">🤝 Đối tác ngoài</span>':'')) : '<span style="color:var(--muted)">Chưa phân công</span>';
+    document.getElementById('iVehicle').textContent = o.vehicle || '—';
+
+    /* ===== Khối Thanh toán (đẹp + trạng thái thu tiền) ===== */
+    const p = payInfo(o);
+    const row = (label, val, strong, color) =>
+      `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--line);font-size:13px">
+         <span style="color:var(--muted)">${label}</span>
+         <span style="font-weight:${strong ? 700 : 500}${color ? ';color:' + color : ''}">${val}</span></div>`;
+    const partnerRows = (o.external && o.partnerCost)
+      ? row('Chi phí thuê ngoài', '-' + window.fmt(o.partnerCost) + ' ₫', false, 'var(--muted)')
+        + row('Lợi nhuận', (o.profit > 0 ? '+' : '') + window.fmt(o.profit || 0) + ' ₫', true, o.profit > 0 ? 'var(--ok)' : 'var(--danger)')
+      : '';
+    document.getElementById('payBlock').innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;background:${p.bg};margin-bottom:10px">
+        <div style="font-size:22px">${p.icon}</div>
+        <div style="flex:1">
+          <div style="font-weight:800;color:${p.color};font-size:15px">${p.label.toUpperCase()}</div>
+          <div style="font-size:12px;color:var(--muted)">${p.remaining > 0 ? 'Còn phải thu: <b>' + window.fmt(p.remaining) + ' ₫</b>' : (p.due > 0 ? 'Khách đã trả đủ cước' : 'Đơn không thu cước')}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--muted)">Đã thu</div>
+          <div style="font-weight:800;color:${p.color}">${window.fmt(p.paid)} ₫</div>
+        </div>
+      </div>
+      <div style="padding:4px 14px;background:#FAFAFB;border:1px solid var(--line);border-radius:10px">
+        ${row('Cước vận chuyển', window.fmt(p.freight) + ' ₫', true)}
+        ${p.transfer ? row('Tiền trung chuyển', window.fmt(p.transfer) + ' ₫') : ''}
+        ${row('COD (thu hộ khách)', o.cod ? window.fmt(o.cod) + ' ₫' : '—')}
+        ${row('Hình thức', o.payBy || '—')}
+        ${row('Đã trả', window.fmt(p.paid) + ' ₫', false, 'var(--ok)')}
+        ${row('Còn phải thu', window.fmt(p.remaining) + ' ₫', true, p.remaining > 0 ? 'var(--danger)' : 'var(--ok)')}
+        ${partnerRows}
+      </div>`;
+
+    /* Pill trạng thái thu tiền trên đầu drawer (cạnh trạng thái đơn) */
+    document.getElementById('dMeta').innerHTML += `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:${p.bg};color:${p.color}">${p.icon} ${p.label}</span>`;
 
     /* Timeline */
     const STEP_LABEL = { confirmed:'Tạo đơn / xác nhận', pickup:'Đang lấy hàng', transit:'Đang vận chuyển', delivered:'Đã giao thành công', reconciled:'Đối soát hoàn tất' };
