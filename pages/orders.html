@@ -70,6 +70,7 @@
         <div class="sub">6 dịch vụ · Pipeline 6 trạng thái nhất quán · Mã đơn VTY-NNNNNN</div>
       </div>
       <div class="head-actions">
+        <button class="btn btn-ghost" onclick="window.viewByVehicle()">🚚 Xem theo xe</button>
         <button class="btn btn-ghost" onclick="window.exportOrders()">⬇ Xuất Excel</button>
         <button class="btn btn-ghost" onclick="window.toast('In phiếu giao hàng','info')">🖨 In phiếu</button>
         <button class="btn btn-ghost" onclick="window.openBulkImport('orders')">📥 Nhập hàng loạt</button>
@@ -121,6 +122,7 @@
         <div class="count" id="rowCount"></div>
         <div id="bulkBar" style="display:none;align-items:center;gap:8px;margin-left:14px">
           <b id="bulkCount" style="color:var(--navy)">0</b><span style="color:var(--muted);font-size:13px">đã chọn</span>
+          <button class="btn btn-ghost btn-sm" onclick="window.bulkAssignVehicle()">🚚 Gán xe / tài xế</button>
           <button class="btn btn-ghost btn-sm" onclick="window.bulkStatusOrders()">🔄 Đổi trạng thái</button>
           <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="window.bulkDeleteOrders()">🗑 Xoá đã chọn</button>
           <button class="btn btn-ghost btn-sm" onclick="window.clearBulkSel()">✕ Bỏ chọn</button>

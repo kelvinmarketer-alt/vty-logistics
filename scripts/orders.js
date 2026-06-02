@@ -241,6 +241,83 @@
     };
   };
 
+  /* ============ Gán xe/tài xế cho NHIỀU đơn (1 xe chở nhiều đơn — container ghép) ============ */
+  window.bulkAssignVehicle = function () {
+    const codes = getSelectedCodes();
+    if (!codes.length) { window.toast('Chưa chọn đơn nào', 'warn'); return; }
+    const vehicles = window.STORE.get('vehicles', window.VEHICLES || []);
+    const drivers = window.STORE.get('drivers', window.DRIVERS || []);
+    const vList = vehicles.map(v => `<option value="${(v.plate || '').replace(/"/g, '&quot;')}">`).join('');
+    const dList = drivers.map(d => `<option value="${(d.name || '').replace(/"/g, '&quot;')}">`).join('');
+    window.openModal(`🚚 Gán xe / tài xế cho ${codes.length} đơn`, `
+      <div class="form-row">
+        <div><label>Xe / biển số (gõ tự do được)</label>
+          <input id="baVehicle" list="baVehicleList" placeholder="VD: 29C-12345 / cont 40ft" autocomplete="off">
+          <datalist id="baVehicleList">${vList}</datalist></div>
+        <div><label>Tài xế</label>
+          <input id="baDriver" list="baDriverList" placeholder="Tên tài xế" autocomplete="off">
+          <datalist id="baDriverList">${dList}</datalist></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px;margin-top:6px;cursor:pointer">
+        <input type="checkbox" id="baExternal" style="width:16px;height:16px"> Xe đối tác ngoài (thuê container)
+      </label>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">Gán cùng 1 xe cho <b>${codes.length}</b> đơn → 1 xe chở nhiều đơn (chở ghép). Để trống ô nào thì giữ nguyên ô đó.</div>
+    `, {
+      footer: `<button class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+               <button class="btn btn-primary" onclick="window._baApply()">💾 Gán xe</button>`
+    });
+    window._baApply = () => {
+      const veh = window.formVal('#baVehicle'), drv = window.formVal('#baDriver');
+      const ext = document.getElementById('baExternal')?.checked;
+      if (!veh && !drv) { window.toast('Nhập xe hoặc tài xế', 'warn'); return; }
+      const patch = {};
+      if (veh) patch.vehicle = veh;
+      if (drv) patch.driverName = drv;
+      patch.external = !!ext;
+      codes.forEach(code => window.STORE.update('orders', code, patch));
+      window.closeModal();
+      window.toast(`✓ Đã gán ${codes.length} đơn${veh ? ' → ' + veh : ''}`, 'success');
+      window.clearBulkSel(); render();
+    };
+  };
+
+  /* ============ Xem đơn theo XE (mỗi xe đang chở những đơn nào) ============ */
+  window.viewByVehicle = function () {
+    orders = window.STORE.get('orders', window.ORDERS || []);
+    const active = orders.filter(o => o.status !== 'cancelled');
+    const groups = {};
+    active.forEach(o => { const k = o.vehicle || '__none__'; (groups[k] = groups[k] || []).push(o); });
+    const keys = Object.keys(groups).sort((a, b) => a === '__none__' ? 1 : b === '__none__' ? -1 : a.localeCompare(b));
+    const body = keys.map(k => {
+      const list = groups[k];
+      const totW = list.reduce((s, o) => s + (o.weight || 0), 0);
+      const totF = list.reduce((s, o) => s + (o.freight || 0), 0);
+      const none = k === '__none__';
+      const driver = !none ? (list.find(o => o.driverName) || {}).driverName || '' : '';
+      return `<div style="border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${none ? '#FEF3C7' : 'var(--bg)'}">
+          <b style="font-size:14px">${none ? '⚠️ Chưa gán xe' : '🚚 ' + k}</b>
+          ${driver ? `<span class="staff-pill">${driver}</span>` : ''}
+          <div style="flex:1"></div>
+          <span style="font-size:12px;color:var(--muted)"><b style="color:var(--navy)">${list.length}</b> đơn · ${totW ? totW + ' kg' : '—'} · cước <b style="color:var(--navy)">${window.fmtShort(totF)} ₫</b></span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+          ${list.map(o => `<tr style="border-top:1px solid var(--line);cursor:pointer" onclick="window.closeModal();window.openOrder('${o.code}')">
+            <td style="padding:6px 14px"><b>${o.code}</b></td>
+            <td style="padding:6px 8px">${o.custName || '—'}</td>
+            <td style="padding:6px 8px;color:var(--muted)">${(o.pickup || '').split(',')[0] || '—'} → ${(o.drop || '').split(',')[0] || '—'}</td>
+            <td style="padding:6px 8px;text-align:right;color:var(--muted)">${o.weight ? o.weight + 'kg' : '—'}</td>
+            <td style="padding:6px 14px;text-align:right">${window.fmt(o.freight || 0)}</td>
+          </tr>`).join('')}
+        </table>
+      </div>`;
+    }).join('') || '<div style="padding:30px;text-align:center;color:var(--muted)">Chưa có đơn nào.</div>';
+    window.openModal('🚚 Đơn theo xe / chuyến', body, {
+      width: '840px',
+      footer: `<button class="btn btn-primary" onclick="closeModal()">Đóng</button>`
+    });
+  };
+
   /* ============ Cập nhật thu tiền thủ công ============ */
   window.savePaid = function (code) {
     const v = parseInt(document.getElementById('payInput').value, 10) || 0;
