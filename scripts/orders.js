@@ -232,6 +232,26 @@
     };
   };
 
+  /* ============ Cập nhật thu tiền thủ công ============ */
+  window.savePaid = function (code) {
+    const v = parseInt(document.getElementById('payInput').value, 10) || 0;
+    window.STORE.update('orders', code, { paidAmount: v });
+    window.toast('Đã cập nhật tiền đã thu: ' + window.fmt(v) + ' ₫', 'success');
+    window.openOrder(code); render();
+  };
+  window.markPaid = function (code, mode) {
+    const o = orders.find(x => x.code === code); if (!o) return;
+    const due = (o.freight || 0) + (o.transferFee || 0);
+    window.STORE.update('orders', code, { paidAmount: mode === 'full' ? due : 0 });
+    window.toast(mode === 'full' ? '✓ Đã đánh dấu thu đủ cước' : '↺ Đặt lại: chưa thu cước', mode === 'full' ? 'success' : 'info');
+    window.openOrder(code); render();
+  };
+  window.markCod = function (code, checked) {
+    window.STORE.update('orders', code, { codCollected: !!checked });
+    window.toast(checked ? '✓ Đã đánh dấu thu COD' : 'Bỏ đánh dấu thu COD', checked ? 'success' : 'info');
+    const o = orders.find(x => x.code === code); if (o) o.codCollected = !!checked;
+  };
+
   window.exportOrders = function () {
     orders = window.STORE.get('orders', window.ORDERS || []);
     const rows = orders.filter(match);
@@ -395,7 +415,18 @@
         ${row('Đã trả', window.fmt(p.paid) + ' ₫', false, 'var(--ok)')}
         ${row('Còn phải thu', window.fmt(p.remaining) + ' ₫', true, p.remaining > 0 ? 'var(--danger)' : 'var(--ok)')}
         ${partnerRows}
-      </div>`;
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:12px;color:var(--muted)">Cập nhật tiền đã thu:</label>
+        <input id="payInput" type="number" value="${p.paid}" style="width:150px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px;text-align:right">
+        <button class="btn btn-primary btn-sm" onclick="window.savePaid('${o.code}')">💾 Lưu</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.markPaid('${o.code}','full')">✓ Thu đủ</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.markPaid('${o.code}','none')">↺ Chưa thu</button>
+      </div>
+      ${o.cod ? `<label style="margin-top:8px;display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer">
+        <input type="checkbox" ${o.codCollected ? 'checked' : ''} onchange="window.markCod('${o.code}', this.checked)" style="width:16px;height:16px">
+        Đã thu COD <b>${window.fmt(o.cod)} ₫</b> hộ người gửi ${o.codCollected ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--danger)">(chưa thu)</span>'}
+      </label>` : ''}`;
 
     /* Pill trạng thái thu tiền trên đầu drawer (cạnh trạng thái đơn) */
     document.getElementById('dMeta').innerHTML += `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:${p.bg};color:${p.color}">${p.icon} ${p.label}</span>`;

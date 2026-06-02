@@ -731,26 +731,52 @@ window.resolveCust = function(text) {
       || null;
 };
 
-window.custInputHTML = function(id, value = '', placeholder = 'Gõ tên / mã KH để tìm…') {
-  const listId = id + 'List';
-  const custs = window.STORE.get('customers', window.CUSTOMERS || []);
-  const opts = custs.map(c => `<option value="${(c.name || '').replace(/"/g, '&quot;')}">${c.code}${c.phone ? ' · ' + c.phone : ''}</option>`).join('');
-  return `<input id="${id}" list="${listId}" value="${String(value).replace(/"/g, '&quot;')}" placeholder="${placeholder}" autocomplete="off">
-          <datalist id="${listId}">${opts}</datalist>`;
+/* Ô khách hàng: GÕ TỰ DO + gợi ý hiện ngay bên dưới (không dùng dropdown trình duyệt) */
+window.custInputHTML = function(id, value = '', placeholder = 'Gõ tên / mã / SĐT khách…') {
+  return `<div class="cust-ac" style="position:relative">
+    <input id="${id}" value="${String(value).replace(/"/g, '&quot;')}" placeholder="${placeholder}" autocomplete="off" style="width:100%;box-sizing:border-box">
+    <div id="${id}_sug" class="cust-ac-sug" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:60;background:#fff;border:1px solid var(--line);border-radius:8px;max-height:260px;overflow:auto;box-shadow:0 10px 24px rgba(0,0,0,.14)"></div>
+  </div>`;
 };
 
-/* Gắn xử lý: khi user chọn/nhập xong → resolve KH, gọi onPick(cust|null, rawText) */
+/* Gắn autocomplete: gõ → lọc KH → click chọn; gõ tự do (KH mới) vẫn được. onPick(cust|null, rawText) */
 window.bindCustField = function(id, onPick) {
   const el = document.getElementById(id);
-  if (!el) return;
-  const handler = () => {
-    const c = window.resolveCust(el.value);
-    el.dataset.custId = c ? c.id : '';
-    if (c && el.value !== c.name) el.value = c.name; /* chuẩn hóa hiển thị */
+  const sug = document.getElementById(id + '_sug');
+  if (!el || !sug) return;
+  const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  function choose(c) {
+    el.value = c.name || '';
+    el.dataset.custId = c.id || '';
+    sug.style.display = 'none';
     if (typeof onPick === 'function') onPick(c, el.value);
-  };
-  el.addEventListener('change', handler);
-  el.addEventListener('blur', handler);
+  }
+  function renderSug() {
+    const raw = el.value.trim(), q = norm(raw);
+    const custs = window.STORE.get('customers', window.CUSTOMERS || []);
+    let list = !q ? custs.slice(0, 8)
+      : custs.filter(c => norm(c.name).includes(q) || norm(c.code).includes(q)
+          || (c.phone || '').replace(/\s/g, '').includes(raw.replace(/\s/g, ''))).slice(0, 8);
+    if (!list.length) { sug.style.display = 'none'; return; }
+    sug.innerHTML = list.map(c => `<div class="cust-ac-item" data-id="${c.id}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line)">
+        <div style="font-weight:600;font-size:13px">${c.name || ''}</div>
+        <div style="font-size:11.5px;color:var(--muted)">${c.code || ''}${c.phone ? ' · ' + c.phone : ''}${c.province ? ' · ' + c.province : ''}</div>
+      </div>`).join('');
+    sug.style.display = 'block';
+    sug.querySelectorAll('.cust-ac-item').forEach(it => {
+      it.onmousedown = (e) => { e.preventDefault(); const c = custs.find(x => x.id === it.dataset.id); if (c) choose(c); };
+      it.onmouseenter = () => it.style.background = 'var(--bg)';
+      it.onmouseleave = () => it.style.background = '';
+    });
+  }
+  el.addEventListener('input', () => { el.dataset.custId = ''; renderSug(); });
+  el.addEventListener('focus', renderSug);
+  el.addEventListener('blur', () => {
+    setTimeout(() => { sug.style.display = 'none'; }, 160);
+    const c = window.resolveCust(el.value);
+    if (c) el.dataset.custId = c.id;
+    if (typeof onPick === 'function') onPick(c, el.value);
+  });
 };
 
 window.toggleSidebar = function(force) {
