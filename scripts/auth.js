@@ -109,15 +109,20 @@
         }
       }
 
-      /* Fallback mock — cho phép demo accounts hoạt động khi Supabase chưa có user */
-      const u = MOCK_USERS.find(x => x.email.toLowerCase() === email.toLowerCase() && x.password === password);
-      if (!u) {
-        const msg = supabaseError?.message || '';
-        if (msg && !msg.toLowerCase().includes('invalid')) {
-          return { success: false, error: msg };
-        }
-        return { success: false, error: 'Email hoặc mật khẩu không đúng.' };
+      /* Đã cấu hình Supabase Auth → KHÔNG fallback mock (tránh đăng nhập nhầm vào
+         chế độ local/anon = không lưu được lên cloud). Báo lỗi rõ ràng. */
+      if (isSupabaseAuthMode()) {
+        const msg = (supabaseError?.message || '').toLowerCase();
+        if (msg.includes('not confirm') || msg.includes('confirmed'))
+          return { success: false, error: 'Tài khoản chưa xác nhận email. Vào Supabase → Authentication → Users, hoặc báo admin.' };
+        if (msg.includes('invalid'))
+          return { success: false, error: 'Sai email hoặc mật khẩu. Dùng mật khẩu Supabase (KHÔNG phải admin123).' };
+        return { success: false, error: supabaseError?.message || 'Đăng nhập thất bại — kiểm tra mạng / tài khoản.' };
       }
+
+      /* Chỉ dùng mock khi CHƯA cấu hình Supabase (chạy local/demo) */
+      const u = MOCK_USERS.find(x => x.email.toLowerCase() === email.toLowerCase() && x.password === password);
+      if (!u) return { success: false, error: 'Email hoặc mật khẩu không đúng.' };
       if (u.status === 'off') return { success: false, error: 'Tài khoản đã bị khóa.' };
       const session = {
         staffId: u.staffId, email: u.email, name: u.name, role: u.role, dept: u.dept,
@@ -128,7 +133,7 @@
           : new Date(Date.now() + 4*60*60*1000).toISOString(),
       };
       window.STORE.set('currentUser', session);
-      this.logActivity(u.staffId, 'login', 'Đăng nhập (mock fallback)');
+      this.logActivity(u.staffId, 'login', 'Đăng nhập (local/demo)');
       return { success: true, user: session };
     },
 
@@ -185,6 +190,12 @@
       }
       if (!s.permissions || !Array.isArray(s.permissions)) {
         console.warn('[AUTH] Session thiếu permissions — xoá');
+        window.STORE.set('currentUser', null);
+        return null;
+      }
+      /* Ở chế độ cloud: từ chối phiên mock cũ (không có supabaseUserId) → buộc đăng nhập lại thật */
+      if (isSupabaseAuthMode() && !s.supabaseUserId) {
+        console.warn('[AUTH] Phiên local cũ trong chế độ cloud — buộc đăng nhập lại');
         window.STORE.set('currentUser', null);
         return null;
       }
