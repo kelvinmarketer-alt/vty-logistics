@@ -297,6 +297,7 @@
           <span class="status-pill st-${v.status === 'running' ? 'transit' : v.status === 'idle' ? 'confirmed' : 'pickup'}" style="font-size:10px">${stLab}</span>
         </div>
         <div class="v-foot">
+          <button data-act="editveh" data-id="${v.id}" title="Sửa thông tin xe">✏️ Sửa</button>
           <button data-act="fuel" data-id="${v.id}" title="Ghi nhật ký đổ xăng">⛽ Đổ xăng</button>
           <button data-act="detail" data-id="${v.id}" title="Xem chi tiết xe">📋 Chi tiết</button>
           <button data-act="del" data-id="${v.id}" style="color:var(--danger)" title="Xóa xe">🗑</button>
@@ -315,6 +316,7 @@
         e.stopPropagation();
         const id = btn.dataset.id;
         if (btn.dataset.act === 'fuel') openFuelLog(id);
+        else if (btn.dataset.act === 'editveh') window.openAddVehicleForm(vehicles.find(x => x.id === id));
         else if (btn.dataset.act === 'detail') openVehicle(id);
         else if (btn.dataset.act === 'del') {
           const v = vehicles.find(x => x.id === id);
@@ -927,65 +929,67 @@
     `, { footer:`<button class="btn btn-ghost" onclick="closeModal()">Hủy</button>` });
   };
 
-  window.openAddVehicleForm = function() {
-    const nextId = 'V' + String(vehicles.length + 1).padStart(2, '0');
+  window.openAddVehicleForm = function(existing) {
+    const isEdit = !!(existing && existing.id);
+    const v = existing || {};
+    const nextId = isEdit ? v.id : 'V' + String(vehicles.length + 1).padStart(2, '0');
+    const types = ['Xe tải 1.5T', 'Xe tải 2.5T', 'Xe tải 3.5T', 'Xe tải 5T', 'Xe tải 10T', 'Xe đầu kéo container'];
+    const typeOpts = types.map(t => `<option ${v.type === t ? 'selected' : ''}>${t}</option>`).join('');
     const drvOpts = `<option value="">(chưa phân công)</option>` +
-      drivers.map(d => `<option value="${d.id}">${d.name} · ${d.code}</option>`).join('');
-    window.openModal('🚚 Thêm xe mới', `
+      drivers.map(d => `<option value="${d.id}" ${v.lastDriver === d.id ? 'selected' : ''}>${d.name} · ${d.code}</option>`).join('');
+    const dv = s => (s && s !== '—') ? s : '';
+    window.openModal(isEdit ? '✏️ Sửa xe — ' + v.plate : '🚚 Thêm xe mới', `
       <div class="form-row">
         <div><label>Mã xe</label><input id="vCode" value="${nextId}" readonly style="background:#FAFAFB"></div>
-        <div><label>Biển số *</label><input id="vNewPlate" placeholder="VD: 29C-12345" style="font-family:ui-monospace,monospace;font-weight:700"></div>
+        <div><label>Biển số *</label><input id="vNewPlate" value="${v.plate || ''}" placeholder="VD: 29C-12345" style="font-family:ui-monospace,monospace;font-weight:700"></div>
       </div>
       <div class="form-row">
-        <div><label>Loại xe</label>
-          <select id="vNewType">
-            <option>Xe tải 1.5T</option><option>Xe tải 2.5T</option>
-            <option>Xe tải 3.5T</option><option>Xe tải 5T</option>
-            <option>Xe tải 10T</option><option>Xe đầu kéo container</option>
-          </select></div>
-        <div><label>Tải trọng (tấn)</label><input id="vNewCap" type="number" step="0.5" value="1.5"></div>
+        <div><label>Loại xe</label><select id="vNewType">${typeOpts}</select></div>
+        <div><label>Tải trọng (tấn)</label><input id="vNewCap" type="number" step="0.5" value="${v.cap || 1.5}"></div>
       </div>
       <div class="form-row">
-        <div><label>ODO ban đầu (km)</label><input id="vNewOdo" type="number" value="0"></div>
+        <div><label>ODO (km)</label><input id="vNewOdo" type="number" value="${v.odometer || 0}"></div>
         <div><label>Tài xế chính</label><select id="vNewDriver">${drvOpts}</select></div>
       </div>
       <div class="form-row">
-        <div><label>Đăng kiểm tiếp theo</label><input id="vNewNextReg" placeholder="DD/MM/YYYY"></div>
-        <div><label>Bảo hiểm hết hạn</label><input id="vNewInsurance" placeholder="DD/MM/YYYY"></div>
+        <div><label>Đăng kiểm tiếp theo</label><input id="vNewNextReg" value="${dv(v.nextRegister)}" placeholder="DD/MM/YYYY"></div>
+        <div><label>Bảo hiểm hết hạn</label><input id="vNewInsurance" value="${dv(v.insurance)}" placeholder="DD/MM/YYYY"></div>
       </div>
     `, {
       footer: `<button class="btn btn-ghost" onclick="closeModal()">Hủy</button>
-               <button class="btn btn-primary" onclick="window.submitAddVehicle()">💾 Lưu xe</button>`,
+               <button class="btn btn-primary" onclick="window.submitAddVehicle('${nextId}', ${isEdit})">💾 Lưu xe</button>`,
       width: '560px'
     });
   };
 
-  window.submitAddVehicle = function() {
+  window.submitAddVehicle = function(id, isEdit) {
     const plate = window.formVal('#vNewPlate');
     if (!plate) { window.toast('Nhập biển số', 'warn'); return; }
     const drvId = window.formVal('#vNewDriver');
     const drv = drivers.find(d => d.id === drvId);
-    const newVeh = {
-      id: window.formVal('#vCode'),
+    const fields = {
       plate,
       type: window.formVal('#vNewType'),
       cap: parseFloat(window.formVal('#vNewCap')) || 1.5,
       capUnit: 'tấn',
       lastDriver: drvId || null,
       lastDriverName: drv ? drv.name : '(chưa phân công)',
-      status: 'idle',
-      currentOrder: null,
-      currentRoute: 'Bãi đỗ',
       odometer: parseInt(window.formVal('#vNewOdo'), 10) || 0,
-      lastService: '—',
       nextRegister: window.formVal('#vNewNextReg') || '—',
       insurance: window.formVal('#vNewInsurance') || '—',
-      cost30d: 0, trips30d: 0,
-      fuelLogs: [],
     };
-    window.STORE.add('vehicles', newVeh);
+    if (isEdit) {
+      window.STORE.update('vehicles', id, fields);
+      window.toast('✓ Đã cập nhật xe ' + plate, 'success');
+    } else {
+      window.STORE.add('vehicles', {
+        id: id || window.formVal('#vCode'), ...fields,
+        status: 'idle', currentOrder: null, currentRoute: 'Bãi đỗ',
+        lastService: '—', cost30d: 0, trips30d: 0, fuelLogs: [],
+      });
+      window.toast('✓ Đã thêm xe ' + plate, 'success');
+    }
     window.closeModal();
-    window.toast('✓ Đã thêm xe ' + plate, 'success');
   };
 
   window.openAddDriverForm = function() {
