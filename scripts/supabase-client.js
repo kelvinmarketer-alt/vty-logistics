@@ -33,9 +33,9 @@
   /* === Mapping field VTY (camelCase JS) ↔ Postgres (snake_case) === */
   const FIELD_MAP = {
     customers: {
-      to:   { groupName:'group_name', staffOwner:'staff_owner', lastContact:'last_contact', lastOrder:'last_order',
-              ordersCount:'orders_count', debtOverdue:'debt_overdue', remindCount:'remind_count',
-              taxCode:'tax_code', representative:'rep', serviceId:'service_id' },
+      to:   { groupName:'group_name', group:'group_name', staffOwner:'staff_owner', lastContact:'last_contact', lastOrder:'last_order',
+              ordersCount:'orders_count', orders:'orders_count', debtOverdue:'debt_overdue', remindCount:'remind_count',
+              taxCode:'tax_code', tax:'tax_code', representative:'rep', serviceId:'service_id' },
       from: { group_name:'groupName', staff_owner:'staffOwner', last_contact:'lastContact', last_order:'lastOrder',
               orders_count:'orders', debt_overdue:'debtOverdue', remind_count:'remindCount',
               tax_code:'tax', rep:'rep', service_id:'serviceId' },
@@ -138,21 +138,36 @@
       return data.map(r => mapFrom(table, r));
     },
 
-    /* Insert 1 record */
+    /* Insert 1 record — TỰ THÍCH ỨNG: nếu cột không tồn tại (PGRST204) thì bỏ cột đó + thử lại */
     async insert(table, record) {
-      const mapped = mapTo(table, record);
-      const { data, error } = await client.from(table).insert(mapped).select().single();
-      if (error) { window.__sbLastError = error; console.error('[SB insert]', table, error); return null; }
-      window.__sbLastError = null;
-      return mapFrom(table, data);
+      let mapped = mapTo(table, record);
+      for (let attempt = 0; attempt < 25; attempt++) {
+        const { data, error } = await client.from(table).insert(mapped).select().single();
+        if (!error) { window.__sbLastError = null; return mapFrom(table, data); }
+        const col = error.message && (error.message.match(/'([^']+)' column/) || error.message.match(/column "([^"]+)"/));
+        if ((error.code === 'PGRST204' || /column/.test(error.message || '')) && col && col[1] in mapped) {
+          delete mapped[col[1]]; /* bỏ cột không có trong bảng rồi thử lại */
+          continue;
+        }
+        window.__sbLastError = error; console.error('[SB insert]', table, error); return null;
+      }
+      window.__sbLastError = { code: 'STRIP', message: 'Đã thử bỏ cột nhiều lần vẫn lỗi' };
+      return null;
     },
 
-    /* Update theo id (hoặc code/no) */
+    /* Update theo id — TỰ THÍCH ỨNG bỏ cột không tồn tại */
     async update(table, id, patch, idColumn = 'id') {
-      const mapped = mapTo(table, patch);
-      const { data, error } = await client.from(table).update(mapped).eq(idColumn, id).select().single();
-      if (error) { console.error('[SB update]', table, error); return null; }
-      return mapFrom(table, data);
+      let mapped = mapTo(table, patch);
+      for (let attempt = 0; attempt < 25; attempt++) {
+        const { data, error } = await client.from(table).update(mapped).eq(idColumn, id).select().single();
+        if (!error) { window.__sbLastError = null; return mapFrom(table, data); }
+        const col = error.message && (error.message.match(/'([^']+)' column/) || error.message.match(/column "([^"]+)"/));
+        if ((error.code === 'PGRST204' || /column/.test(error.message || '')) && col && col[1] in mapped) {
+          delete mapped[col[1]]; continue;
+        }
+        window.__sbLastError = error; console.error('[SB update]', table, error); return null;
+      }
+      return null;
     },
 
     /* Xóa theo id */
