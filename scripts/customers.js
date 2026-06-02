@@ -29,13 +29,19 @@
 
   /* Decorate: thêm field thiếu cho mock data lần đầu */
   function decorate(c) {
+    const sid = c.serviceId || SVC_MAP[c.service] || 'lien-tinh';
     return {
       ...c,
+      group: c.group || c.groupName || 'Mới',
+      type: c.type || 'B2C',
+      province: c.province || '—',
       staffOwner: c.staffOwner || STAFF_MAP[c.id] || 'Hoàng Mai',
-      lastContact: c.lastContact || LAST_CONTACT_MAP[c.id] || c.lastOrder,
+      lastContact: c.lastContact || LAST_CONTACT_MAP[c.id] || c.lastOrder || '—',
       zalo: c.zalo || (c.phone || '').replace(/\s/g, ''),
-      serviceId: c.serviceId || SVC_MAP[c.service] || 'lien-tinh',
-      serviceLabel: SVC_LABEL[c.serviceId || SVC_MAP[c.service] || 'lien-tinh'],
+      orders: c.orders || 0,
+      revenue: c.revenue || 0,
+      serviceId: sid,
+      serviceLabel: SVC_LABEL[sid] || '—',
     };
   }
 
@@ -147,7 +153,7 @@
   }
 
   function render() {
-    customers = window.STORE.get('customers', initialData);
+    customers = window.STORE.get('customers', initialData).map(decorate);
     renderKPIs(customers);
     const rows = customers.filter(c => quickMatch(c) && filterMatch(c) && searchMatch(c));
     rowCount.textContent = `Đang hiển thị ${rows.length} / ${customers.length} khách hàng`;

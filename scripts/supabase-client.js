@@ -36,7 +36,7 @@
       to:   { groupName:'group_name', group:'group_name', staffOwner:'staff_owner', lastContact:'last_contact', lastOrder:'last_order',
               ordersCount:'orders_count', orders:'orders_count', debtOverdue:'debt_overdue', remindCount:'remind_count',
               taxCode:'tax_code', tax:'tax_code', representative:'rep', serviceId:'service_id' },
-      from: { group_name:'groupName', staff_owner:'staffOwner', last_contact:'lastContact', last_order:'lastOrder',
+      from: { group_name:'group', staff_owner:'staffOwner', last_contact:'lastContact', last_order:'lastOrder',
               orders_count:'orders', debt_overdue:'debtOverdue', remind_count:'remindCount',
               tax_code:'tax', rep:'rep', service_id:'serviceId' },
     },
