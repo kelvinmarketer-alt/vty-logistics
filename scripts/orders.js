@@ -107,8 +107,17 @@
         </td>
         <td class="hide-md" style="font-size:12px">${o.pickup.split(',')[0]} → ${o.drop.split(',')[0]}</td>
         <td class="hide-md" style="font-size:12px">${o.qty} ${o.unit.toLowerCase()}${o.weight ? ' · '+o.weight+'kg' : ''}</td>
-        <td class="num">${window.fmt(o.freight)}
-            ${(() => { const p = payInfo(o); return `<div style="margin-top:3px"><span style="display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:${p.bg};color:${p.color}">${p.icon} ${p.label}</span></div>`; })()}</td>
+        <td class="num">${(() => {
+            const p = payInfo(o);
+            let line = '';
+            if (p.due > 0 && p.remaining > 0 && p.paid > 0)
+              line = `<div style="font-size:10.5px;color:var(--muted);margin-top:2px">Đã thu ${window.fmt(p.paid)}<br>Còn <b style="color:var(--danger)">${window.fmt(p.remaining)}</b></div>`;
+            else if (p.due > 0 && p.paid === 0)
+              line = `<div style="font-size:10.5px;color:var(--danger);margin-top:2px">Còn ${window.fmt(p.remaining)}</div>`;
+            return `<div style="font-weight:600">${window.fmt(o.freight)}</div>
+              <div style="margin-top:3px"><span style="display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:${p.bg};color:${p.color}">${p.icon} ${p.label}</span></div>
+              ${line}`;
+          })()}</td>
         <td class="num hide-md">${o.cod ? window.fmt(o.cod) : '—'}</td>
         <td class="hide-md" style="font-size:12px">
           <div>${o.driverName}${o.external?' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>':''}</div>
