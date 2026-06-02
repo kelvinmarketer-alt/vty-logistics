@@ -129,6 +129,26 @@
     return result;
   }
 
+  /* Tự sửa payload theo lỗi Postgres để insert/update không chết:
+     - cột không tồn tại → bỏ cột
+     - sai kiểu dữ liệu (vd date "—", number "") → đặt null các field có giá trị đó
+     Trả true nếu đã sửa (nên thử lại), false nếu bó tay. */
+  function fixPayload(mapped, error) {
+    const msg = error && error.message || '';
+    let m = msg.match(/Could not find the '([^']+)'/) || msg.match(/'([^']+)' column/) || msg.match(/column "([^"]+)"/);
+    if (m && m[1] in mapped) { delete mapped[m[1]]; return true; }
+    m = msg.match(/invalid input syntax for type \w+: "([^"]*)"/);
+    if (m) {
+      const bad = m[1];
+      let changed = false;
+      for (const k of Object.keys(mapped)) {
+        if (mapped[k] === bad) { mapped[k] = null; changed = true; }
+      }
+      if (changed) return true;
+    }
+    return false;
+  }
+
   /* === Supabase data API === */
   window.SB_DATA = {
     /* Lấy tất cả records của 1 bảng */
@@ -141,30 +161,23 @@
     /* Insert 1 record — TỰ THÍCH ỨNG: nếu cột không tồn tại (PGRST204) thì bỏ cột đó + thử lại */
     async insert(table, record) {
       let mapped = mapTo(table, record);
-      for (let attempt = 0; attempt < 25; attempt++) {
+      for (let attempt = 0; attempt < 40; attempt++) {
         const { data, error } = await client.from(table).insert(mapped).select().single();
         if (!error) { window.__sbLastError = null; return mapFrom(table, data); }
-        const col = error.message && (error.message.match(/'([^']+)' column/) || error.message.match(/column "([^"]+)"/));
-        if ((error.code === 'PGRST204' || /column/.test(error.message || '')) && col && col[1] in mapped) {
-          delete mapped[col[1]]; /* bỏ cột không có trong bảng rồi thử lại */
-          continue;
-        }
+        if (fixPayload(mapped, error)) continue;
         window.__sbLastError = error; console.error('[SB insert]', table, error); return null;
       }
-      window.__sbLastError = { code: 'STRIP', message: 'Đã thử bỏ cột nhiều lần vẫn lỗi' };
+      window.__sbLastError = { code: 'RETRY', message: 'Thử sửa nhiều lần vẫn lỗi' };
       return null;
     },
 
     /* Update theo id — TỰ THÍCH ỨNG bỏ cột không tồn tại */
     async update(table, id, patch, idColumn = 'id') {
       let mapped = mapTo(table, patch);
-      for (let attempt = 0; attempt < 25; attempt++) {
+      for (let attempt = 0; attempt < 40; attempt++) {
         const { data, error } = await client.from(table).update(mapped).eq(idColumn, id).select().single();
         if (!error) { window.__sbLastError = null; return mapFrom(table, data); }
-        const col = error.message && (error.message.match(/'([^']+)' column/) || error.message.match(/column "([^"]+)"/));
-        if ((error.code === 'PGRST204' || /column/.test(error.message || '')) && col && col[1] in mapped) {
-          delete mapped[col[1]]; continue;
-        }
+        if (fixPayload(mapped, error)) continue;
         window.__sbLastError = error; console.error('[SB update]', table, error); return null;
       }
       return null;
