@@ -773,6 +773,12 @@ window.closeDrawer = function() {
   document.getElementById('drawer')?.classList.remove('open');
   document.getElementById('drawerBg')?.classList.remove('open');
 };
+/* Đóng drawer an toàn khi click nền — hỏi nếu đang nhập dở */
+window.tryCloseDrawer = function() {
+  const d = document.getElementById('drawer');
+  if (d && window._formIsDirty(d) && !confirm('⚠️ Bạn đang nhập dữ liệu chưa lưu.\nĐóng và bỏ hết?')) return;
+  window.closeDrawer();
+};
 
 /* Tabs binding */
 window.bindTabs = function() {
@@ -815,7 +821,7 @@ window.openModal = function(title, bodyHTML, opts = {}) {
   const existing = document.getElementById('modal-bg');
   if (existing) existing.remove();
   const html = `
-    <div id="modal-bg" class="modal-bg open" onclick="if(event.target===this)window.closeModal()">
+    <div id="modal-bg" class="modal-bg open" onclick="if(event.target===this)window.tryCloseModal()">
       <div class="modal" style="max-width:${opts.width||'520px'}${opts.width?`;width:${opts.width}`:''}">
         <div class="modal-head">
           <h3>${title}</h3>
@@ -829,6 +835,23 @@ window.openModal = function(title, bodyHTML, opts = {}) {
 };
 window.closeModal = function() {
   document.getElementById('modal-bg')?.remove();
+};
+/* Kiểm tra form có dữ liệu chưa lưu (input/textarea đã nhập khác mặc định) */
+window._formIsDirty = function(root) {
+  if (!root) return false;
+  return [...root.querySelectorAll('input, textarea')].some(el => {
+    if (el.readOnly || el.disabled || el.type === 'hidden') return false;
+    if (el.type === 'checkbox' || el.type === 'radio') return el.checked !== el.defaultChecked;
+    const v = (el.value || '').trim();
+    return v && v !== (el.defaultValue || '').trim();
+  });
+};
+/* Đóng modal an toàn: nếu đang nhập dở thì hỏi xác nhận (tránh mất dữ liệu khi lỡ click ra ngoài) */
+window.tryCloseModal = function() {
+  const modal = document.getElementById('modal-bg');
+  if (!modal) return;
+  if (window._formIsDirty(modal) && !confirm('⚠️ Bạn đang nhập dữ liệu chưa lưu.\nĐóng và bỏ hết thông tin vừa nhập?')) return;
+  window.closeModal();
 };
 
 /* ============ HELP GUIDES ============ */
