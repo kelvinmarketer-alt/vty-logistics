@@ -401,7 +401,7 @@ window.renderAppShell = function(activeId, breadcrumbText) {
         ${filteredNav.map(group => `
           <div class="nav-section">${group.section}</div>
           ${group.items.map(item => `
-            <a href="${item.href}" class="${item.id === activeId ? 'active' : ''}">
+            <a href="${item.href}" data-nav="${item.id}" class="${item.id === activeId ? 'active' : ''}">
               <span class="ico">${item.icon}</span> ${item.label}
               ${(() => { const b = item.badge === 'dyn' ? window.navBadgeCount(item.id) : item.badge; return b ? `<span class="badge-n">${b}</span>` : ''; })()}
             </a>
@@ -453,6 +453,24 @@ window.renderAppShell = function(activeId, breadcrumbText) {
   try { window.initNotifications(); } catch (e) { console.warn('[notif]', e); }
   try { window.enhanceTooltips(); } catch (e) {}
   try { window.bindGlobalSearch(); } catch (e) {}
+
+  /* Badge sidebar cập nhật REALTIME khi data đổi (cùng trang hoặc từ máy khác qua Supabase) */
+  try {
+    window.updateNavBadges();
+    ['orders', 'customers'].forEach(k => window.STORE.subscribe(k, () => window.updateNavBadges()));
+  } catch (e) {}
+};
+
+/* Cập nhật số badge sidebar từ STORE (gọi lại mỗi khi data thay đổi) */
+window.updateNavBadges = function() {
+  document.querySelectorAll('.sidebar .nav a[data-nav]').forEach(a => {
+    const n = window.navBadgeCount(a.dataset.nav);
+    let span = a.querySelector('.badge-n');
+    if (n) {
+      if (!span) { span = document.createElement('span'); span.className = 'badge-n'; a.appendChild(span); }
+      span.textContent = n;
+    } else if (span) { span.remove(); }
+  });
 };
 
 /* =========================================================
