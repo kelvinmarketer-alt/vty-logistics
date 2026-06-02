@@ -161,7 +161,7 @@
         const act = btn.dataset.act;
         if (act === 'next') advanceStatus(code);
         else if (act === 'print') window.toast('In phiếu ' + code, 'info');
-        else if (act === 'edit') openOrder(code);
+        else if (act === 'edit') window.openCreateOrder(orders.find(x => x.code === code));
         else if (act === 'cancel') cancelOrder(code);
       };
     });
@@ -650,6 +650,7 @@
 
   /* === State bảng hàng hóa nhiều dòng === */
   let orderItems = [];
+  let editingOrderCode = null; /* != null → đang SỬA đơn này (thay vì tạo mới) */
   function blankItem() { return { desc:'', unit:'Thùng', qty:1, weight:0, price:0 }; }
 
   function itemsTableHtml() {
@@ -735,8 +736,12 @@
   };
 
   /* === Create order modal — mẫu HÓA ĐƠN GỬI HÀNG === */
-  window.openCreateOrder = function(prefillCustId) {
-    orderItems = [blankItem()];
+  window.openCreateOrder = function(arg) {
+    const editOrder = (arg && typeof arg === 'object') ? arg : null;
+    const prefillCustId = (typeof arg === 'string') ? arg : null;
+    editingOrderCode = editOrder ? editOrder.code : null;
+    orderItems = (editOrder && Array.isArray(editOrder.items) && editOrder.items.length)
+      ? editOrder.items.map(it => ({ ...it })) : [blankItem()];
     const customers = window.STORE.get('customers', []);
     const drivers = window.STORE.get('drivers', window.DRIVERS || []);
     const vehicles = window.STORE.get('vehicles', window.VEHICLES || []);
@@ -751,17 +756,18 @@
       vehicles.map(v => `<option value="${v.id}">${v.plate} · ${v.type}</option>`).join('');
     const partnerOpts = `<option value="">-- Chọn đối tác --</option>` +
       partners.map(p => `<option value="${p.id}">${p.code} · ${p.name}${p.vehiclePlate?' · '+p.vehiclePlate:''}</option>`).join('');
-    const statusOpts = STEPS.map(s => `<option value="${s}"${s==='confirmed'?' selected':''}>${STATUS[s].icon} ${STATUS[s].label}</option>`).join('');
-    const nextCode = window.STORE.nextOrderCode();
+    const curStatus = editOrder && STEPS.includes(editOrder.status) ? editOrder.status : 'confirmed';
+    const statusOpts = STEPS.map(s => `<option value="${s}"${s===curStatus?' selected':''}>${STATUS[s].icon} ${STATUS[s].label}</option>`).join('');
+    const nextCode = editOrder ? editOrder.code : window.STORE.nextOrderCode();
     const today = new Date().toISOString().slice(0,10);
 
-    window.openModal('🧾 Tạo đơn — Hóa đơn gửi hàng', `
+    window.openModal(editOrder ? ('✏️ Sửa đơn — ' + editOrder.code) : '🧾 Tạo đơn — Hóa đơn gửi hàng', `
       <div style="margin-bottom:14px;padding:10px 12px;background:#F3E8FF;border:1px solid #E9D5FF;border-radius:8px;font-size:12px;color:#7C3AED">
-        💡 <b>Mã đơn tự sinh:</b> <b>${nextCode}</b>
+        ${editOrder ? '✏️ <b>Đang sửa đơn:</b> <b>' + nextCode + '</b>' : '💡 <b>Mã đơn tự sinh:</b> <b>' + nextCode + '</b>'}
       </div>
       <div class="form-row">
         <div><label>Mã đơn</label><input id="oCode" value="${nextCode}" readonly style="background:#FAFAFB;font-family:ui-monospace,monospace;font-weight:600"></div>
-        <div><label>Khách hàng (gõ để tìm — gợi ý tự động)</label>${window.custInputHTML('oCust', prefillCust ? prefillCust.name : '', 'Gõ tên / mã / SĐT khách…')}</div>
+        <div><label>Khách hàng (gõ để tìm — gợi ý tự động)</label>${window.custInputHTML('oCust', editOrder ? (editOrder.custName || '') : (prefillCust ? prefillCust.name : ''), 'Gõ tên / mã / SĐT khách…')}</div>
       </div>
       <div class="form-row">
         <div><label>Trạng thái đơn</label><select id="oStatus">${statusOpts}</select></div>
@@ -889,10 +895,31 @@
       <div class="form-row wide"><label>Ghi chú</label><textarea id="oNote" rows="2" placeholder="Yêu cầu đặc biệt..."></textarea></div>
     `, {
       footer: `<button class="btn btn-ghost" onclick="closeModal()">Hủy</button>
-               <button class="btn btn-primary" onclick="window.submitCreateOrder()">🚚 Tạo đơn</button>`,
+               <button class="btn btn-primary" onclick="window.submitCreateOrder()">${editOrder ? '💾 Lưu thay đổi' : '🚚 Tạo đơn'}</button>`,
       width:'760px'
     });
     renderItemsTable();
+    /* Prefill khi SỬA đơn */
+    if (editOrder) {
+      const setV = (id, v) => { const el = document.getElementById(id); if (el && v != null && v !== '—') el.value = v; };
+      const oc = document.getElementById('oCust'); if (oc) oc.dataset.custId = editOrder.cust || '';
+      setV('oSenderName', editOrder.senderName); setV('oSenderPhone', editOrder.senderPhone); setV('oPickup', editOrder.pickup);
+      setV('oReceiverName', editOrder.receiverName); setV('oReceiverPhone', editOrder.receiverPhone); setV('oDrop', editOrder.drop);
+      setV('oDeliveryPlace', editOrder.deliveryPlace); setV('oNote', editOrder.note);
+      setV('oFreight', editOrder.freight); setV('oCod', editOrder.cod);
+      setV('oTransferFee', editOrder.transferFee); setV('oPaidAmount', editOrder.paidAmount);
+      if (editOrder.serviceType) setV('oSvc', editOrder.serviceType);
+      if (editOrder.transportMode) setV('oMode', editOrder.transportMode);
+      if (editOrder.payBy) setV('oPayBy', editOrder.payBy);
+      if (editOrder.external) {
+        const r = document.querySelector('input[name="oCarrier"][value="external"]');
+        if (r) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); }
+        setV('oPartner', editOrder.driver); setV('oPartnerCost', editOrder.partnerCost);
+      } else {
+        setV('oDriver', editOrder.driver);
+        const veh = vehicles.find(v => v.plate === editOrder.vehicle); if (veh) setV('oVehicle', veh.id);
+      }
+    }
     window.onChangeService(document.getElementById('oSvc').value);
     /* Autocomplete KH: khi chọn → tự điền người gửi từ hồ sơ KH */
     window.bindCustField('oCust', (c) => { if (c) window.fillSenderFromCust(c); });
@@ -1120,6 +1147,16 @@
       staff: window.formVal('#oStaff'),
       note: window.formVal('#oNote') || '',
     };
+    if (editingOrderCode) {
+      delete newOrder.date; /* giữ nguyên ngày tạo gốc */
+      window.STORE.update('orders', editingOrderCode, newOrder);
+      const code = editingOrderCode;
+      editingOrderCode = null;
+      window.closeModal();
+      window.toast('✓ Đã lưu thay đổi đơn ' + code, 'success');
+      render();
+      return;
+    }
     window.STORE.add('orders', newOrder);
     window.closeModal();
     const profitMsg = external ? ` · LN ${window.fmtShort(freight - partnerCost)}₫` : '';

@@ -153,7 +153,7 @@
   window.openPartner = function(id) {
     const isEdit = !!id;
     const p = isEdit ? partners.find(x => x.id === id) : {
-      id: 'P' + String(partners.length + 1).padStart(2,'0'),
+      id: 'P' + Date.now().toString(36) + Math.floor(Math.random() * 100),
       code: window.STORE.nextId('partners', 'DT'),
       kind: 'company', name:'', contact:'', phone:'',
       vehiclePlate:'', vehicleType:'', capacity:0, capUnit:'tấn',
@@ -932,7 +932,7 @@
   window.openAddVehicleForm = function(existing) {
     const isEdit = !!(existing && existing.id);
     const v = existing || {};
-    const nextId = isEdit ? v.id : 'V' + String(vehicles.length + 1).padStart(2, '0');
+    const nextId = isEdit ? v.id : 'V' + Date.now().toString(36) + Math.floor(Math.random() * 100);
     const types = ['Xe tải 1.5T', 'Xe tải 2.5T', 'Xe tải 3.5T', 'Xe tải 5T', 'Xe tải 10T', 'Xe đầu kéo container'];
     const typeOpts = types.map(t => `<option ${v.type === t ? 'selected' : ''}>${t}</option>`).join('');
     const drvOpts = `<option value="">(chưa phân công)</option>` +
@@ -993,7 +993,7 @@
   };
 
   window.openAddDriverForm = function() {
-    const nextId = 'DR' + String(drivers.length + 1).padStart(2, '0');
+    const nextId = 'DR' + Date.now().toString(36) + Math.floor(Math.random() * 100);
     const nextCode = window.STORE.nextId('drivers', 'TX');
     const vehOpts = vehicles.map(v =>
       `<label class="check-item"><input type="checkbox" value="${v.id}"> <span>${v.plate} (${v.type})</span></label>`
