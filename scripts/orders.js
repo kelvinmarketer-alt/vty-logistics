@@ -338,7 +338,7 @@
   function itemsTableHtml() {
     const unitOptHtml = (sel) => window.MD.get('units')
       .map(u => `<option ${u.label===sel?'selected':''}>${u.label}</option>`).join('');
-    const inS = 'width:100%;box-sizing:border-box;padding:5px 6px';
+    const inS = 'width:100%;box-sizing:border-box;padding:8px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px;background:#fff';
     const rows = orderItems.map((it, i) => `
       <tr data-i="${i}">
         <td style="text-align:center;color:var(--muted)">${i+1}</td>
@@ -351,19 +351,25 @@
         <td style="text-align:center"><button type="button" class="btn btn-sm btn-ghost" onclick="window.orderDelItem(${i})" style="color:var(--danger);padding:2px 6px" ${orderItems.length<=1?'disabled':''}>✕</button></td>
       </tr>`).join('');
     return `
-      <table class="items-tbl" style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px">
+      <style>
+        .items-tbl td{padding:6px 5px;vertical-align:middle}
+        .items-tbl th{padding:8px 5px}
+        .items-tbl tbody tr{border-bottom:1px solid var(--line)}
+        .items-tbl input:focus,.items-tbl select:focus{outline:2px solid var(--navy);outline-offset:-1px;border-color:var(--navy)}
+      </style>
+      <table class="items-tbl" style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px">
         <colgroup>
-          <col style="width:30px"><col><col style="width:84px"><col style="width:64px">
-          <col style="width:72px"><col style="width:104px"><col style="width:100px"><col style="width:32px">
+          <col style="width:34px"><col><col style="width:96px"><col style="width:74px">
+          <col style="width:84px"><col style="width:120px"><col style="width:118px"><col style="width:36px">
         </colgroup>
-        <thead><tr style="background:#F3F4F6;color:var(--muted);font-size:10.5px;text-transform:uppercase">
-          <th style="padding:6px 2px">STT</th>
-          <th style="padding:6px 4px;text-align:left">Diễn giải</th>
-          <th style="padding:6px 2px">ĐVT</th>
-          <th style="padding:6px 2px;text-align:right">SL</th>
-          <th style="padding:6px 2px;text-align:right">TL kg</th>
-          <th style="padding:6px 2px;text-align:right">Đơn giá</th>
-          <th style="padding:6px 2px;text-align:right">Thành tiền</th>
+        <thead><tr style="background:#F3F4F6;color:var(--muted);font-size:11px;text-transform:uppercase">
+          <th>STT</th>
+          <th style="text-align:left">Diễn giải</th>
+          <th>ĐVT</th>
+          <th style="text-align:right">SL</th>
+          <th style="text-align:right">TL kg</th>
+          <th style="text-align:right">Đơn giá</th>
+          <th style="text-align:right">Thành tiền</th>
           <th></th>
         </tr></thead>
         <tbody id="itemsBody">${rows}</tbody>
