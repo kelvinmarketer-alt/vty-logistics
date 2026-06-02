@@ -459,6 +459,31 @@ window.renderAppShell = function(activeId, breadcrumbText) {
     window.updateNavBadges();
     ['orders', 'customers'].forEach(k => window.STORE.subscribe(k, () => window.updateNavBadges()));
   } catch (e) {}
+
+  /* Cảnh báo nếu đang chạy LOCAL (chưa đăng nhập tài khoản cloud thật → không lưu được) */
+  try { window.checkCloudConnection(); } catch (e) {}
+};
+
+/* Kiểm tra kết nối cloud: có phiên Supabase thật chưa? Nếu chưa → banner đỏ cảnh báo. */
+window.checkCloudConnection = async function() {
+  if (!window.SB || window.SUPABASE_CONFIG?.mode !== 'supabase') return;
+  let session = null;
+  try { session = (await window.SB.auth.getSession()).data.session; } catch (e) {}
+  const old = document.getElementById('cloud-banner');
+  if (session) {
+    window._cloudConnected = true;
+    if (old) old.remove();
+    return;
+  }
+  window._cloudConnected = false;
+  const bn = old || document.createElement('div');
+  bn.id = 'cloud-banner';
+  bn.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#B91C1C;color:#fff;padding:9px 16px;font-size:13px;font-weight:600;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.25)';
+  bn.innerHTML = '⚠️ ĐANG CHẠY CHẾ ĐỘ LOCAL — dữ liệu KHÔNG được lưu lên cloud. '
+    + 'Hãy đăng xuất rồi đăng nhập lại bằng tài khoản Supabase (KHÔNG dùng admin123).'
+    + '<button onclick="window.AUTH&&window.AUTH.logout?window.AUTH.logout():(localStorage.removeItem(\'vty_currentUser\'),location.href=\'login.html\')" '
+    + 'style="margin-left:12px;background:#fff;color:#B91C1C;border:0;border-radius:6px;padding:4px 12px;font-weight:700;cursor:pointer">⏻ Đăng xuất ngay</button>';
+  if (!old) document.body.appendChild(bn);
 };
 
 /* Cập nhật số badge sidebar từ STORE (gọi lại mỗi khi data thay đổi) */
