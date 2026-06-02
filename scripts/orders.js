@@ -76,7 +76,7 @@
       const svc = SVC[o.serviceType] || {icon:'❓', label:o.serviceType, color:'#666'};
       const tm = o.transportMode ? TM[o.transportMode] : null;
       return `<tr data-code="${o.code}">
-        <td onclick="event.stopPropagation()"><div class="checkbox" onclick="this.classList.toggle('on')"></div></td>
+        <td onclick="event.stopPropagation()"><input type="checkbox" class="row-chk" data-code="${o.code}" style="width:16px;height:16px;cursor:pointer"></td>
         <td><b style="color:var(--navy)">${o.code}</b>
             <div style="margin-top:2px">
               <span class="svc-tag" style="background:${svc.color}20;color:${svc.color}">${svc.icon} ${svc.label}</span>
@@ -112,6 +112,17 @@
     document.querySelectorAll('#tbody tr[data-code]').forEach(tr => {
       tr.onclick = () => openOrder(tr.dataset.code);
     });
+    /* Chọn hàng loạt */
+    document.querySelectorAll('#tbody .row-chk').forEach(chk => {
+      chk.onclick = (e) => e.stopPropagation();
+      chk.onchange = updateBulkBar;
+    });
+    const selAll = document.getElementById('selAll');
+    if (selAll) { selAll.checked = false; selAll.onchange = () => {
+      document.querySelectorAll('#tbody .row-chk').forEach(c => c.checked = selAll.checked);
+      updateBulkBar();
+    }; }
+    updateBulkBar();
     document.querySelectorAll('#tbody button[data-act]').forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation();
@@ -150,6 +161,57 @@
   ['qSearch','fMode','fDriver','fStaff'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', render);
   });
+
+  /* ============ Chọn / đổi trạng thái / xoá hàng loạt ============ */
+  function getSelectedCodes() {
+    return [...document.querySelectorAll('#tbody .row-chk:checked')].map(c => c.dataset.code);
+  }
+  function updateBulkBar() {
+    const codes = getSelectedCodes();
+    const bar = document.getElementById('bulkBar');
+    const cnt = document.getElementById('bulkCount');
+    if (cnt) cnt.textContent = codes.length;
+    if (bar) bar.style.display = codes.length ? 'flex' : 'none';
+    const selAll = document.getElementById('selAll');
+    const all = document.querySelectorAll('#tbody .row-chk');
+    if (selAll) selAll.checked = all.length > 0 && codes.length === all.length;
+  }
+  window.clearBulkSel = function () {
+    document.querySelectorAll('#tbody .row-chk').forEach(c => c.checked = false);
+    const selAll = document.getElementById('selAll'); if (selAll) selAll.checked = false;
+    updateBulkBar();
+  };
+  window.bulkDeleteOrders = function () {
+    const codes = getSelectedCodes();
+    if (!codes.length) { window.toast('Chưa chọn đơn nào', 'warn'); return; }
+    window.confirmDelete(`Xoá ${codes.length} đơn đã chọn?`, () => {
+      codes.forEach(code => window.STORE.remove('orders', code));
+      window.toast(`Đã xoá ${codes.length} đơn`, 'danger');
+      window.clearBulkSel();
+      render();
+    });
+  };
+  window.bulkStatusOrders = function () {
+    const codes = getSelectedCodes();
+    if (!codes.length) { window.toast('Chưa chọn đơn nào', 'warn'); return; }
+    const opts = Object.keys(STATUS).map(k => `<option value="${k}">${STATUS[k].icon} ${STATUS[k].label}</option>`).join('');
+    window.openModal(`Đổi trạng thái ${codes.length} đơn`, `
+      <div class="form-row wide"><label>Trạng thái mới</label>
+        <select id="bulkStatus">${opts}</select></div>
+      <div style="font-size:12px;color:var(--muted)">Áp dụng cho ${codes.length} đơn đã chọn.</div>
+    `, {
+      footer: `<button class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+               <button class="btn btn-primary" onclick="window._bulkStatusApply()">💾 Áp dụng</button>`
+    });
+    window._bulkStatusApply = () => {
+      const st = window.formVal('#bulkStatus');
+      window.closeModal();
+      codes.forEach(code => applyStatusChange(code, st));
+      window.toast(`Đã đổi trạng thái ${codes.length} đơn → ${STATUS[st].label}`, 'success');
+      window.clearBulkSel();
+      render();
+    };
+  };
 
   window.exportOrders = function () {
     orders = window.STORE.get('orders', window.ORDERS || []);
