@@ -39,6 +39,29 @@
   };
 
   /* === Partners render === */
+  /* Tải hiện tại của 1 xe (theo biển số) = các đơn đang gán xe đó */
+  function vehicleLoad(plate) {
+    if (!plate) return { count: 0, kg: 0, running: false };
+    const ords = window.STORE.get('orders', window.ORDERS || []);
+    const list = ords.filter(o => o.vehicle === plate && ['confirmed', 'pickup', 'transit'].includes(o.status));
+    return { count: list.length, kg: list.reduce((s, o) => s + (o.weight || 0), 0), running: list.some(o => o.status === 'transit') };
+  }
+  function capToKg(cap, unit) {
+    return cap && /t/i.test(unit || '') && !/kg/i.test(unit || '') ? cap * 1000 : (cap || 0);
+  }
+  /* Cho xe của đối tác khởi chạy (đơn chờ → Đang giao) */
+  window.runPartnerVehicle = function (partnerId) {
+    const p = (window.STORE.get('partners', []) || []).find(x => x.id === partnerId);
+    if (!p || !p.vehiclePlate) { window.toast('Đối tác chưa có biển số xe', 'warn'); return; }
+    const ords = window.STORE.get('orders', window.ORDERS || []);
+    const list = ords.filter(o => o.vehicle === p.vehiclePlate && (o.status === 'confirmed' || o.status === 'pickup'));
+    if (!list.length) { window.toast('Xe ' + p.vehiclePlate + ' chưa có đơn chờ chạy', 'warn'); return; }
+    if (!confirm(`Cho xe ${p.vehiclePlate} (${p.name}) khởi chạy?\n${list.length} đơn sẽ chuyển sang "Đang giao".`)) return;
+    list.forEach(o => window.STORE.update('orders', o.code, { status: 'transit' }));
+    window.toast(`🚚 ${p.vehiclePlate} khởi chạy · ${list.length} đơn → Đang giao`, 'success');
+    renderPartners();
+  };
+
   function renderPartners() {
     partners = window.STORE.get('partners', window.PARTNERS || []);
     const q = (document.getElementById('qPartner')?.value || '').trim().toLowerCase();
@@ -54,6 +77,21 @@
       const kindLab = p.kind === 'company' ? '🏢 Nhà xe' : '👤 Tự do';
       const stLab = p.active ? '🟢 Hoạt động' : '⚫ Tạm ngưng';
       const stCls = p.active ? 'st-delivered' : 'st-cancelled';
+      const capKg = capToKg(p.capacity, p.capUnit);
+      const ld = vehicleLoad(p.vehiclePlate);
+      const pct = capKg ? Math.min(100, Math.round(ld.kg / capKg * 100)) : 0;
+      const full = capKg && pct >= 100;
+      const loadBadge = ld.running ? { t: '🚚 Đang chạy', bg: '#EDE9FE', fg: '#7C3AED' }
+        : full ? { t: '🔴 Đầy xe', bg: '#FEE2E2', fg: '#B91C1C' }
+        : ld.count ? { t: (capKg ? pct + '%' : ld.count + ' đơn'), bg: '#DBEAFE', fg: '#1D4ED8' }
+        : { t: 'Trống', bg: '#F3F4F6', fg: 'var(--muted)' };
+      const loadCell = !p.vehiclePlate ? '<span style="color:var(--muted)">— (chỉ tài xế)</span>'
+        : `<div style="font-size:12px;font-weight:600">${p.capacity ? 'Tải ' + p.capacity + (p.capUnit || '') : '(chưa khai tải)'}</div>
+           <div style="font-size:11px;color:var(--muted)">${ld.count} đơn · ${ld.kg}kg${capKg ? ' / ' + capKg + 'kg' : ''}</div>
+           ${capKg ? `<div style="margin-top:3px;height:6px;width:96px;background:var(--line);border-radius:99px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${full ? 'var(--danger)' : pct >= 70 ? 'var(--ok)' : 'var(--warn)'}"></div></div>` : ''}
+           <span style="display:inline-block;margin-top:3px;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:${loadBadge.bg};color:${loadBadge.fg}">${loadBadge.t}</span>`;
+      const canRun = p.vehiclePlate && ld.count && !ld.running && vehicleLoad(p.vehiclePlate).count;
+      const hasWaiting = p.vehiclePlate && (window.STORE.get('orders', window.ORDERS || []) || []).some(o => o.vehicle === p.vehiclePlate && (o.status === 'confirmed' || o.status === 'pickup'));
       return `<tr data-id="${p.id}">
         <td><b>${p.code}</b></td>
         <td>
@@ -70,13 +108,13 @@
           <div style="font-family:ui-monospace,monospace;font-weight:700;color:var(--navy)">${p.vehiclePlate || '(chỉ tài xế)'}</div>
           <div style="font-size:11px;color:var(--muted)">${p.phone}</div>
         </td>
-        <td class="hide-md" style="font-size:12px;max-width:180px">${p.specialty}</td>
+        <td>${loadCell}</td>
         <td class="num hide-sm">${p.trips30d}</td>
-        <td class="num">${window.fmtShort(p.totalSpent30d)}</td>
         <td class="hide-sm"><span class="star">★ ${p.rating}</span></td>
         <td><span class="status-pill ${stCls}">${stLab}</span></td>
         <td onclick="event.stopPropagation()">
           <div class="row-actions">
+            ${hasWaiting ? `<button onclick="window.runPartnerVehicle('${p.id}')" title="Cho xe khởi chạy" style="color:var(--ok);font-weight:700">🚀</button>` : ''}
             <button class="ra-zalo" data-act="zalo" data-id="${p.id}" title="Nhắn Zalo">Z</button>
             <button class="ra-call" data-act="call" data-id="${p.id}" title="Gọi điện">📞</button>
             <button data-act="edit" data-id="${p.id}" title="Sửa / xem">✏️</button>
@@ -84,7 +122,7 @@
           </div>
         </td>
       </tr>`;
-    }).join('') || `<tr><td colspan="10" style="padding:40px;text-align:center;color:var(--muted)">Không có đối tác nào khớp.</td></tr>`;
+    }).join('') || `<tr><td colspan="9" style="padding:40px;text-align:center;color:var(--muted)">Không có đối tác nào khớp.</td></tr>`;
 
     tbody.querySelectorAll('tr[data-id]').forEach(tr => {
       tr.onclick = () => openPartner(tr.dataset.id);
