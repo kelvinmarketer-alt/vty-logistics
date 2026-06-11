@@ -145,6 +145,30 @@ window.AVATAR_COLORS = ['#C8102E','#1C2D5A','#E8A33D','#7C3AED','#0EA5E9','#1580
 /* ============ Format helpers ============ */
 window.fmt = function(n) { return (n ?? 0).toLocaleString('vi-VN'); };
 window.fmtVND = function(n) { return window.fmt(n) + ' ₫'; };
+
+/* ===== Ô nhập TIỀN: hiển thị có dấu chấm ngăn cách (5.000.000) khi gõ ===== */
+/* Đọc số nguyên từ chuỗi tiền (bỏ dấu chấm/đơn vị) */
+window.parseMoney = function (v) {
+  const n = parseInt(String(v == null ? '' : v).replace(/[^\d-]/g, ''), 10);
+  return isNaN(n) ? 0 : n;
+};
+/* Lấy giá trị số từ 1 ô tiền theo selector */
+window.moneyVal = function (selector, root = document) {
+  const el = root.querySelector(selector);
+  return el ? window.parseMoney(el.value) : 0;
+};
+/* Gắn auto-format dấu chấm cho 1 ô input tiền (chuyển sang type=text) */
+window.bindMoneyInput = function (el) {
+  if (!el) return;
+  el.type = 'text';
+  el.setAttribute('inputmode', 'numeric');
+  const fmtNow = () => {
+    const d = el.value.replace(/[^\d]/g, '');
+    el.value = d ? Number(d).toLocaleString('vi-VN') : '';
+  };
+  el.addEventListener('input', fmtNow);
+  fmtNow();
+};
 window.fmtShort = function(n) {
   if (n >= 1_000_000_000) return (n/1_000_000_000).toFixed(1).replace(/\.0$/,'') + ' tỷ';
   if (n >= 1_000_000) return (n/1_000_000).toFixed(1).replace(/\.0$/,'') + ' tr';

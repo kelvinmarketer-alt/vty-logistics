@@ -380,7 +380,7 @@
 
   /* ============ Cập nhật thu tiền thủ công ============ */
   window.savePaid = function (code) {
-    const v = parseInt(document.getElementById('payInput').value, 10) || 0;
+    const v = window.parseMoney(document.getElementById('payInput').value);
     window.STORE.update('orders', code, { paidAmount: v });
     window.toast('Đã cập nhật tiền đã thu: ' + window.fmt(v) + ' ₫', 'success');
     window.openOrder(code); render();
@@ -405,7 +405,7 @@
     window.openOrder(code); render();
   };
   window.saveLastMile = function (code) {
-    const fee = parseInt(document.getElementById('lmFee').value, 10) || 0;
+    const fee = window.parseMoney(document.getElementById('lmFee').value);
     window.STORE.update('orders', code, {
       lastMileMode: 'delivery', lastMileFee: fee,
       lastMileDriver: window.formVal('#lmDriver'), lastMileAddr: window.formVal('#lmAddr'),
@@ -581,7 +581,7 @@
       </div>
       <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <label style="font-size:12px;color:var(--muted)">Cập nhật tiền đã thu:</label>
-        <input id="payInput" type="number" value="${p.paid}" style="width:150px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px;text-align:right">
+        <input id="payInput" type="text" inputmode="numeric" value="${window.fmt(p.paid)}" style="width:150px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px;text-align:right">
         <button class="btn btn-primary btn-sm" onclick="window.savePaid('${o.code}')">💾 Lưu</button>
         <button class="btn btn-ghost btn-sm" onclick="window.markPaid('${o.code}','full')">✓ Thu đủ</button>
         <button class="btn btn-ghost btn-sm" onclick="window.markPaid('${o.code}','none')">↺ Chưa thu</button>
@@ -601,13 +601,17 @@
       </div>
       ${lm === 'delivery' ? `
         <div class="form-row">
-          <div><label>Phí giao tận nhà (₫)</label><input id="lmFee" type="number" value="${o.lastMileFee || 0}"></div>
+          <div><label>Phí giao tận nhà (₫)</label><input id="lmFee" type="text" inputmode="numeric" value="${window.fmt(o.lastMileFee || 0)}"></div>
           <div><label>Tài xế / xe giao nội thành</label><input id="lmDriver" value="${(o.lastMileDriver || '').replace(/"/g, '&quot;')}" placeholder="Tên tài xế giao"></div>
         </div>
         <div class="form-row wide"><label>Địa chỉ giao tận nhà</label><input id="lmAddr" value="${(o.lastMileAddr || '').replace(/"/g, '&quot;')}" placeholder="Số nhà, đường, phường, quận"></div>
         <button class="btn btn-primary btn-sm" onclick="window.saveLastMile('${o.code}')">💾 Lưu chặng cuối (phí cộng vào cước)</button>`
       : lm === 'pickup' ? `<div style="font-size:12.5px;color:var(--ok);padding:6px 0">✓ Khách tự ra kho lấy hàng — không phát sinh phí giao.</div>`
       : `<div style="font-size:12.5px;color:var(--muted);padding:6px 0">Khi hàng về kho đích, chọn: khách tự lấy hay giao tận nhà (phát sinh phí giao chặng cuối).</div>`}`;
+
+    /* Định dạng dấu chấm cho ô tiền trong drawer */
+    window.bindMoneyInput(document.getElementById('payInput'));
+    window.bindMoneyInput(document.getElementById('lmFee'));
 
     /* Pill trạng thái thu tiền trên đầu drawer (cạnh trạng thái đơn) */
     document.getElementById('dMeta').innerHTML += `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:${p.bg};color:${p.color}">${p.icon} ${p.label}</span>`;
@@ -664,7 +668,7 @@
         <td><select class="it-unit" style="${inS}">${unitOptHtml(it.unit)}</select></td>
         <td><input class="it-qty" type="number" min="0" value="${it.qty}" style="${inS};text-align:right"></td>
         <td><input class="it-weight" type="number" min="0" value="${it.weight}" style="${inS};text-align:right"></td>
-        <td><input class="it-price" type="number" min="0" value="${it.price}" style="${inS};text-align:right"></td>
+        <td><input class="it-price" type="text" inputmode="numeric" value="${window.fmt(it.price)}" style="${inS};text-align:right"></td>
         <td class="num it-amount" style="font-weight:600;text-align:right;padding-right:6px">${window.fmt(it.qty*it.price)}</td>
         <td style="text-align:center"><button type="button" class="btn btn-sm btn-ghost" onclick="window.orderDelItem(${i})" style="color:var(--danger);padding:2px 6px" ${orderItems.length<=1?'disabled':''}>✕</button></td>
       </tr>`).join('');
@@ -703,7 +707,12 @@
       tr.querySelector('.it-unit').onchange  = e => { orderItems[i].unit = e.target.value; };
       tr.querySelector('.it-qty').oninput    = e => { orderItems[i].qty = +e.target.value||0; window.orderRecalc(); };
       tr.querySelector('.it-weight').oninput = e => { orderItems[i].weight = +e.target.value||0; window.orderRecalc(); };
-      tr.querySelector('.it-price').oninput  = e => { orderItems[i].price = +e.target.value||0; window.orderRecalc(); };
+      tr.querySelector('.it-price').oninput  = e => {
+        const n = window.parseMoney(e.target.value);
+        orderItems[i].price = n;
+        e.target.value = n ? n.toLocaleString('vi-VN') : '';
+        window.orderRecalc();
+      };
     });
   }
 
@@ -765,20 +774,15 @@
       <div style="margin-bottom:14px;padding:10px 12px;background:#F3E8FF;border:1px solid #E9D5FF;border-radius:8px;font-size:12px;color:#7C3AED">
         ${editOrder ? '✏️ <b>Đang sửa đơn:</b> <b>' + nextCode + '</b>' : '💡 <b>Mã đơn tự sinh:</b> <b>' + nextCode + '</b>'}
       </div>
-      <div class="section-h" style="margin:2px 0 8px">👤 Khách hàng <span style="font-weight:400;color:var(--muted);font-size:11.5px">— tự lưu vào danh bạ KH; trùng tên + SĐT sẽ tính sang đơn kế tiếp</span></div>
-      <div class="form-row">
-        <div><label>Tên khách hàng *</label>${window.custInputHTML('oCust', editOrder ? (editOrder.custName || '') : (prefillCust ? prefillCust.name : ''), 'Gõ tên / mã / SĐT khách…')}</div>
-        <div><label>SĐT khách hàng</label><input id="oCustPhone" placeholder="09xx — để nhận diện KH cũ / mới" autocomplete="off"></div>
-      </div>
       <div class="form-row">
         <div><label>Mã đơn</label><input id="oCode" value="${nextCode}" readonly style="background:#FAFAFB;font-family:ui-monospace,monospace;font-weight:600"></div>
         <div><label>Trạng thái đơn</label><select id="oStatus">${statusOpts}</select></div>
       </div>
 
-      <!-- ============ NGƯỜI GỬI / NGƯỜI NHẬN ============ -->
-      <div class="section-h" style="margin:14px 0 8px">📤 Người gửi</div>
+      <!-- ============ NGƯỜI GỬI (= KHÁCH HÀNG) / NGƯỜI NHẬN ============ -->
+      <div class="section-h" style="margin:14px 0 8px">📤 Người gửi <span style="font-weight:400;color:var(--muted);font-size:11.5px">— chính là khách hàng, tự lưu vào danh bạ; trùng tên + SĐT sẽ tính sang đơn kế tiếp</span></div>
       <div class="form-row">
-        <div><label>Tên người gửi *</label><input id="oSenderName" placeholder="Họ tên / công ty gửi"></div>
+        <div><label>Tên người gửi / khách hàng *</label>${window.custInputHTML('oSenderName', editOrder ? (editOrder.senderName || editOrder.custName || '') : (prefillCust ? prefillCust.name : ''), 'Gõ tên khách / người gửi…')}</div>
         <div><label>SĐT gửi</label><input id="oSenderPhone" placeholder="09xx xxx xxx"></div>
       </div>
       <div class="form-row wide"><label>📍 Địa chỉ gửi (lấy hàng)</label><input id="oPickup" placeholder="Số nhà, đường, quận, tỉnh"></div>
@@ -820,12 +824,12 @@
       <!-- ============ TIỀN / THANH TOÁN ============ -->
       <div class="section-h" style="margin:16px 0 8px">💰 Cước & thanh toán</div>
       <div class="form-row">
-        <div><label>Cước vận chuyển (₫) *</label><input id="oFreight" type="number" placeholder="0"></div>
-        <div><label>Thu tiền hàng / COD (₫)</label><input id="oCod" type="number" placeholder="0"></div>
+        <div><label>Cước vận chuyển (₫) *</label><input id="oFreight" type="text" inputmode="numeric" placeholder="0"></div>
+        <div><label>Thu tiền hàng / COD (₫)</label><input id="oCod" type="text" inputmode="numeric" placeholder="0"></div>
       </div>
       <div class="form-row">
-        <div><label>Tiền trung chuyển (₫)</label><input id="oTransferFee" type="number" placeholder="0"></div>
-        <div><label>Tiền đã trả (₫)</label><input id="oPaidAmount" type="number" placeholder="0"></div>
+        <div><label>Tiền trung chuyển (₫)</label><input id="oTransferFee" type="text" inputmode="numeric" placeholder="0"></div>
+        <div><label>Tiền đã trả (₫)</label><input id="oPaidAmount" type="text" inputmode="numeric" placeholder="0"></div>
       </div>
       <div class="form-row">
         <div><label>Hình thức thanh toán</label>
@@ -873,7 +877,7 @@
         </div>
         <div id="partnerPreview" style="display:none;padding:10px 12px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;font-size:12px;margin-bottom:12px"></div>
         <div class="form-row">
-          <div><label>Chi phí thuê đối tác (₫) *</label><input id="oPartnerCost" type="number" placeholder="0"></div>
+          <div><label>Chi phí thuê đối tác (₫) *</label><input id="oPartnerCost" type="text" inputmode="numeric" placeholder="0"></div>
           <div><label>Lợi nhuận (auto-tính)</label><input id="oProfit" readonly style="background:#FAFAFB;font-weight:700"></div>
         </div>
       </div>
@@ -903,9 +907,8 @@
     /* Prefill khi SỬA đơn */
     if (editOrder) {
       const setV = (id, v) => { const el = document.getElementById(id); if (el && v != null && v !== '—') el.value = v; };
-      const oc = document.getElementById('oCust'); if (oc) oc.dataset.custId = editOrder.cust || '';
-      setV('oCustPhone', editOrder.custPhone || editOrder.senderPhone);
-      setV('oSenderName', editOrder.senderName); setV('oSenderPhone', editOrder.senderPhone); setV('oPickup', editOrder.pickup);
+      const oc = document.getElementById('oSenderName'); if (oc) oc.dataset.custId = editOrder.cust || '';
+      setV('oSenderPhone', editOrder.senderPhone); setV('oPickup', editOrder.pickup);
       setV('oReceiverName', editOrder.receiverName); setV('oReceiverPhone', editOrder.receiverPhone); setV('oDrop', editOrder.drop);
       setV('oDeliveryPlace', editOrder.deliveryPlace); setV('oNote', editOrder.note);
       setV('oFreight', editOrder.freight); setV('oCod', editOrder.cod);
@@ -923,21 +926,21 @@
       }
     }
     window.onChangeService(document.getElementById('oSvc').value);
-    /* Autocomplete KH: khi chọn → tự điền người gửi từ hồ sơ KH */
-    window.bindCustField('oCust', (c) => { if (c) window.fillSenderFromCust(c); });
-    if (prefillCust) { document.getElementById('oCust').dataset.custId = prefillCust.id; window.fillSenderFromCust(prefillCust); }
+    /* Tên người gửi = khách hàng: gõ → gợi ý KH cũ → tự điền SĐT/địa chỉ gửi */
+    window.bindCustField('oSenderName', (c) => { if (c) window.fillSenderFromCust(c); });
+    if (prefillCust) { const sn = document.getElementById('oSenderName'); if (sn) sn.dataset.custId = prefillCust.id; window.fillSenderFromCust(prefillCust); }
+    /* Định dạng dấu chấm cho mọi ô tiền */
+    ['oFreight','oCod','oTransferFee','oPaidAmount','oPartnerCost'].forEach(id => window.bindMoneyInput(document.getElementById(id)));
     /* Auto-tính lợi nhuận khi thay đổi giá */
     ['oFreight','oPartnerCost'].forEach(id => {
       document.getElementById(id)?.addEventListener('input', updateProfit);
     });
   };
 
-  /* Khi chọn KH → auto điền người gửi từ hồ sơ KH */
+  /* Khi chọn KH cũ → auto điền SĐT + địa chỉ gửi (tên đã nằm ở ô người gửi) */
   window.fillSenderFromCust = function(c) {
     if (!c) return;
     const setIf = (id, val) => { const el = document.getElementById(id); if (el && !el.value && val) el.value = val; };
-    setIf('oCustPhone', c.phone);
-    setIf('oSenderName', c.name);
     setIf('oSenderPhone', c.phone);
     setIf('oPickup', c.address);
   };
@@ -969,8 +972,8 @@
   };
 
   function updateProfit() {
-    const freight = parseInt(window.formVal('#oFreight'), 10) || 0;
-    const cost = parseInt(window.formVal('#oPartnerCost'), 10) || 0;
+    const freight = window.moneyVal('#oFreight');
+    const cost = window.moneyVal('#oPartnerCost');
     const profit = freight - cost;
     const profitEl = document.getElementById('oProfit');
     if (profitEl) {
@@ -1041,13 +1044,13 @@
 
   window.submitCreateOrder = function(initStatus) {
     const status = window.formVal('#oStatus') || initStatus || 'confirmed';
-    const custEl = document.getElementById('oCust');
+    /* Khách hàng = người gửi (ô oSenderName). Ưu tiên KH đã resolve (dataset), rồi resolve theo text */
+    const custEl = document.getElementById('oSenderName');
     const custText = (custEl?.value || '').trim();
-    /* Ưu tiên KH đã resolve (dataset), nếu chưa thì thử resolve theo text gõ vào */
     let custMatch = custEl?.dataset.custId ? window.STORE.get('customers', []).find(c => c.id === custEl.dataset.custId) : null;
     if (!custMatch && custText) custMatch = window.resolveCust(custText);
     const custId = custMatch ? custMatch.id : '';
-    const freight = parseInt(window.formVal('#oFreight'), 10) || 0;
+    const freight = window.moneyVal('#oFreight');
     /* Lọc các dòng hàng có nhập diễn giải */
     const items = orderItems
       .filter(it => (it.desc || '').trim() || it.qty > 1 || it.price > 0)
@@ -1080,7 +1083,7 @@
       if (!partnerId) { window.toast('Chọn đối tác ngoài', 'warn'); return; }
       const p = partners.find(x => x.id === partnerId);
       if (!p) { window.toast('Đối tác không tồn tại', 'warn'); return; }
-      partnerCost = parseInt(window.formVal('#oPartnerCost'), 10) || 0;
+      partnerCost = window.moneyVal('#oPartnerCost');
       if (!partnerCost) { window.toast('Nhập chi phí thuê đối tác', 'warn'); return; }
       external = true;
       partnerName = p.name;
@@ -1109,9 +1112,9 @@
       date: new Date().toLocaleString('vi-VN'),
       cust: custId,
       custName: cust ? cust.name : custText,
-      custPhone: window.formVal('#oCustPhone') || window.formVal('#oSenderPhone') || '',
-      /* Người gửi / người nhận */
-      senderName: window.formVal('#oSenderName') || (cust ? cust.name : ''),
+      custPhone: window.formVal('#oSenderPhone') || '',
+      /* Người gửi / người nhận (người gửi = khách hàng) */
+      senderName: window.formVal('#oSenderName') || (cust ? cust.name : custText),
       senderPhone: window.formVal('#oSenderPhone') || '',
       senderAddress: window.formVal('#oPickup') || '',
       receiverName: window.formVal('#oReceiverName') || '',
@@ -1134,9 +1137,9 @@
       goodsValue,
       /* Tiền */
       freight,
-      cod: parseInt(window.formVal('#oCod'), 10) || 0,
-      transferFee: parseInt(window.formVal('#oTransferFee'), 10) || 0,
-      paidAmount: parseInt(window.formVal('#oPaidAmount'), 10) || 0,
+      cod: window.moneyVal('#oCod'),
+      transferFee: window.moneyVal('#oTransferFee'),
+      paidAmount: window.moneyVal('#oPaidAmount'),
       payBy: window.formVal('#oPayBy'),
       receiveMethod: window.formVal('#oReceiveMethod') || '',
       otherDocs: window.formVal('#oOtherDocs') || '',
