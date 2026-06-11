@@ -156,21 +156,32 @@
 
     orders: {
       storeKey: 'orders', title: 'Đơn hàng',
+      /* Thứ tự cột MẶC ĐỊNH khi dán Excel KHÔNG có dòng tiêu đề (khớp mẫu của VTY:
+         Nhà xe · Ngày · Người gửi · SĐT gửi · Điểm lấy · Người nhận · SĐT nhận · Điểm giao · Loại hàng · Mô tả).
+         Các cột TIỀN (cước/COD) cố ý để TRỐNG → người dùng tự gán, tránh nhập nhầm số tiền thật. */
+      positional: ['carrier', 'date', 'custName', 'senderPhone', 'pickup', 'receiverName', 'receiverPhone', 'drop', 'cargoType', 'goods'],
       cols: [
-        { key: 'custName', label: 'Khách hàng', required: true, aliases: ['khach hang', 'kh', 'customer'] },
-        { key: 'receiverName', label: 'Người nhận', aliases: ['nguoi nhan', 'receiver'] },
-        { key: 'pickup', label: 'Địa chỉ gửi', aliases: ['dia chi gui', 'lay hang', 'pickup'] },
-        { key: 'drop', label: 'Địa chỉ nhận', aliases: ['dia chi nhan', 'giao hang', 'drop'] },
-        { key: 'goods', label: 'Hàng hóa', required: true, aliases: ['hang hoa', 'hang', 'goods', 'dien giai'] },
+        { key: 'custName', label: 'Khách hàng (người gửi)', required: true, aliases: ['khach hang', 'kh', 'customer', 'nguoi gui', 'ten nguoi gui', 'ten gui'] },
+        { key: 'senderPhone', label: 'SĐT khách/gửi', aliases: ['sdt gui', 'sdt khach', 'sdt nguoi gui', 'dien thoai gui', 'phone'] },
+        { key: 'pickup', label: 'Điểm lấy / địa chỉ gửi', aliases: ['dia chi gui', 'lay hang', 'diem lay', 'pickup', 'noi gui'] },
+        { key: 'receiverName', label: 'Người nhận', aliases: ['nguoi nhan', 'ten nguoi nhan', 'receiver', 'ten nhan'] },
+        { key: 'receiverPhone', label: 'SĐT nhận', aliases: ['sdt nhan', 'sdt nguoi nhan', 'dien thoai nhan'] },
+        { key: 'drop', label: 'Điểm giao / địa chỉ nhận', aliases: ['dia chi nhan', 'giao hang', 'diem giao', 'drop', 'noi nhan'] },
+        { key: 'cargoType', label: 'Loại hàng', aliases: ['loai hang', 'mat hang', 'cargo'] },
+        { key: 'goods', label: 'Mô tả hàng hóa', required: true, aliases: ['hang hoa', 'hang', 'goods', 'dien giai', 'mo ta', 'noi dung hang'] },
         { key: 'qty', label: 'Số lượng', type: 'int', aliases: ['so luong', 'sl', 'qty'] },
         { key: 'unit', label: 'ĐVT', aliases: ['dvt', 'don vi', 'unit'] },
-        { key: 'weight', label: 'Trọng lượng', type: 'int', aliases: ['trong luong', 'tl', 'kg', 'weight'] },
+        { key: 'weight', label: 'Trọng lượng (kg)', type: 'int', aliases: ['trong luong', 'tl', 'kg', 'weight', 'khoi luong'] },
         { key: 'price', label: 'Đơn giá', type: 'int', aliases: ['don gia', 'price'] },
-        { key: 'freight', label: 'Cước', type: 'int', required: true, aliases: ['cuoc', 'cuoc van chuyen', 'freight'] },
-        { key: 'cod', label: 'COD', type: 'int', aliases: ['cod', 'thu ho', 'thu tien hang'] },
+        { key: 'freight', label: 'Cước', type: 'int', required: true, aliases: ['cuoc', 'cuoc van chuyen', 'freight', 'tien cuoc'] },
+        { key: 'cod', label: 'COD / thu hộ', type: 'int', aliases: ['cod', 'thu ho', 'thu tien hang', 'tien thu ho'] },
+        { key: 'transferFee', label: 'Trung chuyển', type: 'int', aliases: ['trung chuyen', 'transfer'] },
+        { key: 'carrier', label: 'Nhà xe / đối tác', aliases: ['nha xe', 'xe', 'doi tac', 'carrier', 'nha van chuyen'] },
+        { key: 'date', label: 'Ngày', aliases: ['ngay', 'date', 'ngay tao', 'ngay gui'] },
         { key: 'route', label: 'Tuyến', aliases: ['tuyen', 'route'] },
         { key: 'payBy', label: 'Hình thức TT', aliases: ['hinh thuc thanh toan', 'thanh toan', 'pay'] },
         { key: 'staff', label: 'NV KD', aliases: ['nv', 'nhan vien', 'staff'] },
+        { key: 'note', label: 'Ghi chú', aliases: ['ghi chu', 'note', 'luu y'] },
       ],
       build(r) {
         const code = window.STORE.nextOrderCode();
@@ -178,21 +189,25 @@
         const item = { desc: r.goods || '', unit: r.unit || 'Thùng', qty, weight, price, amount: qty * price };
         const custs = window.STORE.get('customers', []);
         const matched = custs.find(c => norm(c.name) === norm(r.custName));
+        const carrier = (r.carrier || '').trim();
+        const external = !!carrier;
         return {
-          code, date: new Date().toLocaleString('vi-VN'),
+          code, date: (r.date || '').trim() || new Date().toLocaleString('vi-VN'),
           cust: matched ? matched.id : null, custName: r.custName,
-          senderName: r.custName, senderPhone: '', senderAddress: r.pickup || '',
-          receiverName: r.receiverName || '', receiverPhone: '', receiverAddress: r.drop || '',
+          custPhone: r.senderPhone || '',
+          senderName: r.custName, senderPhone: r.senderPhone || '', senderAddress: r.pickup || '',
+          receiverName: r.receiverName || '', receiverPhone: r.receiverPhone || '', receiverAddress: r.drop || '',
           deliveryPlace: '', deliveryDate: '', serviceType: 'lien-tinh', transportMode: 'duong-bo',
-          route: r.route || '', cargoType: '',
+          route: r.route || '', cargoType: r.cargoType || '',
           pickup: r.pickup || '—', drop: r.drop || '—',
           items: [item], goods: `${qty} ${(item.unit || '').toLowerCase()} ${item.desc}`.trim(),
           qty, weight, unit: item.unit, goodsValue: item.amount,
-          freight: nInt(r.freight), cod: nInt(r.cod), transferFee: 0, paidAmount: 0,
+          freight: nInt(r.freight), cod: nInt(r.cod), transferFee: nInt(r.transferFee), paidAmount: 0,
           payBy: r.payBy || 'Người gửi trả', receiveMethod: '', otherDocs: '', loadOrder: '',
-          driver: '—', driverName: '—', vehicle: '—', external: false,
-          partnerId: null, partnerName: null, partnerCost: 0, profit: null,
-          priority: false, status: 'confirmed', staff: r.staff || '', note: '(nhập hàng loạt)',
+          driver: external ? carrier : '—', driverName: external ? ('🤝 ' + carrier) : '—',
+          vehicle: external ? carrier : '—', external,
+          partnerId: null, partnerName: external ? carrier : null, partnerCost: 0, profit: null,
+          priority: false, status: 'confirmed', staff: r.staff || '', note: r.note || '(nhập từ Excel)',
         };
       },
     },
@@ -250,6 +265,23 @@
     return { rows, headerIdx: idx, unmatchedRequired };
   }
 
+  /* Map theo VỊ TRÍ cột (dùng khi không có tiêu đề / gán cột thủ công).
+     keyByIndex: { colIndex → schemaKey }. hasHeader=true thì bỏ qua dòng đầu. */
+  function rowsToObjectsManual(grid, schema, keyByIndex, hasHeader) {
+    const data = (hasHeader ? grid.slice(1) : grid).filter(r => r.some(c => (c || '').trim()));
+    const rows = data.map(cells => {
+      const o = {};
+      schema.cols.forEach(col => { o[col.key] = ''; });
+      Object.entries(keyByIndex).forEach(([idx, key]) => {
+        if (key) o[key] = (cells[+idx] || '').trim();
+      });
+      return o;
+    });
+    const used = new Set(Object.values(keyByIndex).filter(Boolean));
+    const unmatchedRequired = schema.cols.filter(c => c.required && !used.has(c.key)).map(c => c.label);
+    return { rows, headerIdx: {}, unmatchedRequired };
+  }
+
   function rowErrors(row, schema) {
     return schema.cols.filter(c => c.required && !String(row[c.key] || '').trim()).map(c => c.label);
   }
@@ -299,6 +331,66 @@
   }
 
   let _parsed = null, _curKey = null;
+  let _grid = null, _mapHasHeader = false, _mapNCol = 0;
+
+  /* === Bảng GÁN CỘT (khi dán không có tiêu đề / muốn tự gán) === */
+  function clearColumnMap() { const m = document.getElementById('biMap'); if (m) m.innerHTML = ''; }
+
+  function renderColumnMap(grid, schema, hasHeader) {
+    const map = document.getElementById('biMap');
+    if (!map || !grid || !grid.length) return;
+    /* dọn preview cũ + khoá nút nhập tới khi xem trước lại */
+    const pv = document.getElementById('biPreview'); if (pv) pv.innerHTML = '';
+    const sub = document.getElementById('biSubmit'); if (sub) { sub.disabled = true; sub.textContent = '✓ Nhập'; }
+    _parsed = null;
+    const nCol = grid.reduce((m, r) => Math.max(m, r.length), 0);
+    const dataRow = grid[hasHeader && grid.length > 1 ? 1 : 0] || [];
+    /* gợi ý sẵn: ưu tiên khớp tiêu đề, nếu không thì theo thứ tự cột mặc định của schema */
+    const seed = {};
+    if (hasHeader) Object.entries(mapHeaders(grid[0] || [], schema)).forEach(([k, i]) => { seed[i] = k; });
+    else if (schema.positional) schema.positional.forEach((k, i) => { if (k) seed[i] = k; });
+    const optsFor = (selKey) => `<option value="">(bỏ qua)</option>` +
+      schema.cols.map(c => `<option value="${c.key}" ${selKey === c.key ? 'selected' : ''}>${c.label}${c.required ? ' *' : ''}</option>`).join('');
+    let rows = '';
+    for (let i = 0; i < nCol; i++) {
+      const label = (hasHeader ? (grid[0][i] || '') : '') || ('Cột ' + (i + 1));
+      const sample = String(dataRow[i] == null ? '' : dataRow[i]).slice(0, 40);
+      rows += `<tr style="border-top:1px solid var(--line,#E5E7EB)">
+        <td style="padding:5px 8px;font-weight:600;white-space:nowrap">${String(label).replace(/</g, '&lt;')}</td>
+        <td style="padding:5px 8px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sample.replace(/</g, '&lt;') || '—'}</td>
+        <td style="padding:5px 8px"><select id="bimap_${i}" style="width:100%;padding:5px 7px;border:1px solid var(--line,#E5E7EB);border-radius:6px;font-size:12.5px">${optsFor(seed[i])}</select></td>
+      </tr>`;
+    }
+    map.innerHTML = `
+      <div style="margin:12px 0 6px;font-size:12.5px;font-weight:600;color:var(--navy,#1C2D5A)">⚙ Gán cột — chọn mỗi cột nguồn ứng với trường nào <span style="font-weight:400;color:var(--muted)">(cột tiền nhớ chọn đúng <b>Cước</b> / <b>COD</b>)</span></div>
+      <div style="overflow:auto;max-height:300px;border:1px solid var(--line,#E5E7EB);border-radius:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+          <thead style="position:sticky;top:0;background:#F3F4F6;color:var(--muted);text-transform:uppercase;font-size:10.5px">
+            <tr><th style="padding:6px 8px;text-align:left">Cột nguồn</th><th style="padding:6px 8px;text-align:left">Dữ liệu mẫu</th><th style="padding:6px 8px;text-align:left">→ Gán vào trường</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="margin:8px 0 2px"><button class="btn btn-sm btn-primary" type="button" onclick="window._biApplyMap()">👁 Xem trước theo cột đã gán</button></div>`;
+    _mapHasHeader = hasHeader; _mapNCol = nCol;
+  }
+
+  window._biManualMap = function () {
+    const schema = SCHEMAS[_curKey];
+    const fileEl = document.getElementById('biFile'), pasteEl = document.getElementById('biPaste');
+    const hh = () => document.getElementById('biHasHeader')?.checked !== false;
+    if (_grid) { renderColumnMap(_grid, schema, hh()); return; }
+    if (fileEl.files && fileEl.files[0]) parseFile(fileEl.files[0]).then(g => { _grid = g; renderColumnMap(g, schema, hh()); }).catch(e => window.toast('Lỗi: ' + e.message, 'danger'));
+    else if (pasteEl.value.trim()) { _grid = parseDelimited(pasteEl.value); renderColumnMap(_grid, schema, hh()); }
+    else window.toast('Chọn file hoặc dán dữ liệu trước', 'warn');
+  };
+
+  window._biApplyMap = function () {
+    const schema = SCHEMAS[_curKey];
+    const keyByIndex = {};
+    for (let i = 0; i < _mapNCol; i++) { const sel = document.getElementById('bimap_' + i); if (sel && sel.value) keyByIndex[i] = sel.value; }
+    renderPreview(_curKey, rowsToObjectsManual(_grid, schema, keyByIndex, _mapHasHeader));
+  };
 
   /* =========================================================
      NHẬP TỪ ẢNH (AI Vision) — tái dùng API key ở Settings → Tích hợp → AI Form Filler
@@ -480,12 +572,27 @@ Quy tắc:
     const schema = SCHEMAS[key];
     const fileEl = document.getElementById('biFile');
     const pasteEl = document.getElementById('biPaste');
+    const explicitHeader = document.getElementById('biHasHeader')?.checked !== false;
     try {
       let grid;
       if (fileEl.files && fileEl.files[0]) grid = await parseFile(fileEl.files[0]);
       else if (pasteEl.value.trim()) grid = parseDelimited(pasteEl.value);
       else { window.toast('Chọn file hoặc dán dữ liệu', 'warn'); return; }
-      renderPreview(key, rowsToObjects(grid, schema));
+      if (!grid.length) { window.toast('Không đọc được dòng nào', 'warn'); return; }
+      _grid = grid;
+      /* Có tiêu đề thật không? (≥2 cột khớp tên cột đã biết) */
+      const looksHeader = Object.keys(mapHeaders(grid[0] || [], schema)).length >= 2;
+      const hasHeader = explicitHeader && looksHeader;
+      if (!hasHeader) {
+        /* Không có/không khớp tiêu đề → mở bảng gán cột (gợi ý sẵn theo thứ tự mặc định) */
+        renderColumnMap(grid, schema, false);
+        window.toast('Không thấy dòng tiêu đề — đã gợi ý gán cột, kiểm tra rồi bấm "Xem trước"', 'info');
+        return;
+      }
+      const result = rowsToObjects(grid, schema);
+      if (result.unmatchedRequired.length) { renderColumnMap(grid, schema, true); return; }
+      clearColumnMap();
+      renderPreview(key, result);
     } catch (e) {
       window.toast('Lỗi đọc dữ liệu: ' + e.message, 'danger');
     }
@@ -494,15 +601,23 @@ Quy tắc:
   function doImport() {
     const key = _curKey, schema = SCHEMAS[key];
     if (!_parsed || !_parsed.valid.length) return;
-    let n = 0;
+    let n = 0, newCust = 0;
     _parsed.valid.forEach(r => {
       const typed = {};
       schema.cols.forEach(c => { typed[c.key] = c.type === 'int' ? nInt(r[c.key]) : r[c.key]; });
-      window.STORE.add(schema.storeKey, schema.build(typed));
+      const built = schema.build(typed);
+      window.STORE.add(schema.storeKey, built);
+      /* Đơn hàng: tự lưu/nhận diện KH (mã KH tự sinh; trùng tên+SĐT → tăng số đơn) */
+      if (key === 'orders' && window.upsertCustomerFromOrder) {
+        const before = window.STORE.get('customers', []).length;
+        window.upsertCustomerFromOrder(built, { increment: true });
+        if (window.STORE.get('customers', []).length > before) newCust++;
+      }
       n++;
     });
     window.closeModal();
-    window.toast(`✓ Đã nhập ${n} ${schema.title.toLowerCase()}`, 'success');
+    const cm = (key === 'orders' && newCust) ? ` · 🆕 ${newCust} KH mới` : '';
+    window.toast(`✓ Đã nhập ${n} ${schema.title.toLowerCase()}${cm}`, 'success');
     if (typeof window.STORE.subscribe === 'function') { /* các trang tự re-render qua subscribe */ }
   }
 
@@ -510,7 +625,7 @@ Quy tắc:
   window.openBulkImport = function (key) {
     const schema = SCHEMAS[key];
     if (!schema) { window.toast('Module chưa hỗ trợ nhập hàng loạt', 'warn'); return; }
-    _curKey = key; _parsed = null;
+    _curKey = key; _parsed = null; _grid = null; _mapNCol = 0;
     const colList = schema.cols.map(c => `<span style="display:inline-block;padding:2px 8px;margin:2px;background:#F1F5F9;border-radius:6px;font-size:11.5px">${c.label}${c.required ? ' <b style="color:var(--red,#C8102E)">*</b>' : ''}</span>`).join('');
     window.openModal(`📥 Nhập hàng loạt — ${schema.title}`, `
       <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">
@@ -525,7 +640,15 @@ Quy tắc:
         <div style="display:flex;align-items:flex-end"><button class="btn btn-primary" style="width:100%" onclick="window._biParse()">🔍 Phân tích</button></div>
       </div>
       <div class="form-row wide"><label>… hoặc dán bảng (copy từ Excel rồi Ctrl+V)</label>
-        <textarea id="biPaste" rows="4" placeholder="Dán dữ liệu có dòng tiêu đề ở đầu..."></textarea></div>
+        <textarea id="biPaste" rows="4" placeholder="Dán dữ liệu (có hoặc KHÔNG có dòng tiêu đề đều được)..."></textarea></div>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:2px 0 8px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
+          <input type="checkbox" id="biHasHeader" checked> Dòng đầu là tiêu đề cột
+        </label>
+        <button class="btn btn-sm btn-ghost" type="button" onclick="window._biManualMap()">⚙ Gán cột thủ công</button>
+        <span style="font-size:11.5px;color:var(--muted)">Dán nguyên dòng Excel không có tiêu đề? Cứ bấm <b>Phân tích</b> — hệ thống tự gợi ý gán cột.</span>
+      </div>
+      <div id="biMap"></div>
       <div style="margin:6px 0 10px;padding:12px;border:1px dashed var(--line,#E5E7EB);border-radius:10px;background:#FAFBFC">
         <div style="font-size:12.5px;font-weight:600;color:var(--navy,#1C2D5A);margin-bottom:6px">📷 Hoặc nhập từ <b>ảnh</b> (AI đọc tự động)</div>
         <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">Chụp/đăng ảnh chứng từ, đơn hàng, bảng kê, danh thiếp… AI sẽ trích thành dòng. Dùng API key ở <b>Cài đặt → Tích hợp → AI Form Filler</b>.</div>

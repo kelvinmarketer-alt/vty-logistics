@@ -731,6 +731,61 @@ window.resolveCust = function(text) {
       || null;
 };
 
+/* =========================================================
+   TỰ LƯU / NHẬN DIỆN KHÁCH HÀNG TỪ ĐƠN HÀNG
+   - Đơn hàng là nơi nhập đủ thông tin KH. Khi lưu đơn:
+     • Trùng (đã link cust) hoặc trùng TÊN + SĐT  → tăng "số đơn" của KH đó
+     • Chưa có                                    → tạo KH mới, mã KH tự sinh
+   - opts.increment = false  → chỉ cập nhật/nhận diện, KHÔNG tăng số đơn (dùng khi SỬA đơn)
+   - Trả về custId (mã KH) đã gắn cho đơn.
+   ========================================================= */
+window.upsertCustomerFromOrder = function (o, opts) {
+  if (!o) return null;
+  opts = opts || {};
+  const inc = opts.increment !== false;            /* mặc định: tạo đơn mới → +1 */
+  const name = (o.custName || o.senderName || '').trim();
+  if (!name) return null;
+  const digits = s => String(s || '').replace(/\D/g, '');
+  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const phone = o.custPhone || o.senderPhone || '';
+  const ph = digits(phone);
+  const todayVN = new Date().toLocaleDateString('vi-VN');
+  const customers = window.STORE.get('customers', window.CUSTOMERS || []);
+
+  /* Tìm KH: 1) đã link mã  2) cùng SĐT + tên  3) cùng SĐT  4) cùng tên (khi 2 bên đều chưa có SĐT) */
+  let c = o.cust ? customers.find(x => x.id === o.cust) : null;
+  if (!c && ph) c = customers.find(x => digits(x.phone) === ph && norm(x.name) === norm(name));
+  if (!c && ph) c = customers.find(x => digits(x.phone) === ph);
+  if (!c && !ph) c = customers.find(x => norm(x.name) === norm(name) && !digits(x.phone));
+
+  if (c) {
+    const patch = { lastOrder: todayVN, lastContact: todayVN };
+    if (inc) patch.orders = (c.orders || 0) + 1;          /* "đơn số 2, 3…" */
+    if (!digits(c.phone) && phone) patch.phone = phone;    /* bổ sung SĐT nếu KH cũ chưa có */
+    if (!c.address && o.pickup && o.pickup !== '—') patch.address = o.pickup;
+    window.STORE.update('customers', c.id, patch);
+    if (o.cust !== c.id && o.code) window.STORE.update('orders', o.code, { cust: c.id });
+    return c.id;
+  }
+
+  /* Tạo KH mới — mã KH tự sinh (KH00x) */
+  const code = window.STORE.nextId('customers', 'KH', 3);
+  const newC = {
+    id: code, code, name, contact: name,
+    type: 'B2C', group: 'Mới',
+    phone: phone || '', email: '', tax: '',
+    address: (o.pickup && o.pickup !== '—') ? o.pickup : '',
+    province: '—', serviceId: o.serviceType || 'lien-tinh',
+    staffOwner: o.staff || 'Hoàng Mai', source: 'Tạo từ đơn hàng',
+    created: todayVN, lastContact: todayVN, lastOrder: todayVN,
+    active: true, orders: inc ? 1 : 0, revenue: 0, debt: 0, debtOverdue: 0,
+    notes: [], ordersList: [], route: '—',
+  };
+  window.STORE.add('customers', newC);
+  if (o.code) window.STORE.update('orders', o.code, { cust: code });
+  return code;
+};
+
 /* Ô khách hàng: GÕ TỰ DO + gợi ý hiện ngay bên dưới (không dùng dropdown trình duyệt) */
 window.custInputHTML = function(id, value = '', placeholder = 'Gõ tên / mã / SĐT khách…') {
   return `<div class="cust-ac" style="position:relative">

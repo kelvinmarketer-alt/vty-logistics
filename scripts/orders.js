@@ -441,8 +441,8 @@
     window.STORE.update('orders', code, { status: newStatus });
     if (newStatus === 'delivered' && prev !== 'delivered' && o.cust) {
       const c = window.STORE.get('customers', []).find(x => x.id === o.cust);
+      /* Số đơn đã được tính lúc TẠO đơn (upsertCustomerFromOrder) — ở đây chỉ cộng doanh thu thực nhận */
       if (c) window.STORE.update('customers', o.cust, {
-        orders: (c.orders || 0) + 1,
         revenue: (c.revenue || 0) + (o.freight || 0),
         lastOrder: new Date().toLocaleDateString('vi-VN'),
       });
@@ -765,13 +765,14 @@
       <div style="margin-bottom:14px;padding:10px 12px;background:#F3E8FF;border:1px solid #E9D5FF;border-radius:8px;font-size:12px;color:#7C3AED">
         ${editOrder ? '✏️ <b>Đang sửa đơn:</b> <b>' + nextCode + '</b>' : '💡 <b>Mã đơn tự sinh:</b> <b>' + nextCode + '</b>'}
       </div>
+      <div class="section-h" style="margin:2px 0 8px">👤 Khách hàng <span style="font-weight:400;color:var(--muted);font-size:11.5px">— tự lưu vào danh bạ KH; trùng tên + SĐT sẽ tính sang đơn kế tiếp</span></div>
       <div class="form-row">
-        <div><label>Mã đơn</label><input id="oCode" value="${nextCode}" readonly style="background:#FAFAFB;font-family:ui-monospace,monospace;font-weight:600"></div>
-        <div><label>Khách hàng (gõ để tìm — gợi ý tự động)</label>${window.custInputHTML('oCust', editOrder ? (editOrder.custName || '') : (prefillCust ? prefillCust.name : ''), 'Gõ tên / mã / SĐT khách…')}</div>
+        <div><label>Tên khách hàng *</label>${window.custInputHTML('oCust', editOrder ? (editOrder.custName || '') : (prefillCust ? prefillCust.name : ''), 'Gõ tên / mã / SĐT khách…')}</div>
+        <div><label>SĐT khách hàng</label><input id="oCustPhone" placeholder="09xx — để nhận diện KH cũ / mới" autocomplete="off"></div>
       </div>
       <div class="form-row">
+        <div><label>Mã đơn</label><input id="oCode" value="${nextCode}" readonly style="background:#FAFAFB;font-family:ui-monospace,monospace;font-weight:600"></div>
         <div><label>Trạng thái đơn</label><select id="oStatus">${statusOpts}</select></div>
-        <div></div>
       </div>
 
       <!-- ============ NGƯỜI GỬI / NGƯỜI NHẬN ============ -->
@@ -903,6 +904,7 @@
     if (editOrder) {
       const setV = (id, v) => { const el = document.getElementById(id); if (el && v != null && v !== '—') el.value = v; };
       const oc = document.getElementById('oCust'); if (oc) oc.dataset.custId = editOrder.cust || '';
+      setV('oCustPhone', editOrder.custPhone || editOrder.senderPhone);
       setV('oSenderName', editOrder.senderName); setV('oSenderPhone', editOrder.senderPhone); setV('oPickup', editOrder.pickup);
       setV('oReceiverName', editOrder.receiverName); setV('oReceiverPhone', editOrder.receiverPhone); setV('oDrop', editOrder.drop);
       setV('oDeliveryPlace', editOrder.deliveryPlace); setV('oNote', editOrder.note);
@@ -934,6 +936,7 @@
   window.fillSenderFromCust = function(c) {
     if (!c) return;
     const setIf = (id, val) => { const el = document.getElementById(id); if (el && !el.value && val) el.value = val; };
+    setIf('oCustPhone', c.phone);
     setIf('oSenderName', c.name);
     setIf('oSenderPhone', c.phone);
     setIf('oPickup', c.address);
@@ -1106,6 +1109,7 @@
       date: new Date().toLocaleString('vi-VN'),
       cust: custId,
       custName: cust ? cust.name : custText,
+      custPhone: window.formVal('#oCustPhone') || window.formVal('#oSenderPhone') || '',
       /* Người gửi / người nhận */
       senderName: window.formVal('#oSenderName') || (cust ? cust.name : ''),
       senderPhone: window.formVal('#oSenderPhone') || '',
@@ -1152,15 +1156,20 @@
       window.STORE.update('orders', editingOrderCode, newOrder);
       const code = editingOrderCode;
       editingOrderCode = null;
+      /* Nhận diện/đồng bộ KH nhưng KHÔNG tăng số đơn (chỉ là sửa đơn cũ) */
+      window.upsertCustomerFromOrder(newOrder, { increment: false });
       window.closeModal();
       window.toast('✓ Đã lưu thay đổi đơn ' + code, 'success');
       render();
       return;
     }
     window.STORE.add('orders', newOrder);
+    /* Đơn hàng là nơi nhập KH: tự lưu / nhận diện KH + tính số đơn kế tiếp nếu trùng */
+    const linkedCustId = window.upsertCustomerFromOrder(newOrder, { increment: true });
+    const custMsg = (!custId && linkedCustId) ? ` · 🆕 đã lưu KH ${linkedCustId}` : '';
     window.closeModal();
     const profitMsg = external ? ` · LN ${window.fmtShort(freight - partnerCost)}₫` : '';
-    window.toast('✓ Đã tạo ' + newOrder.code + profitMsg, 'success');
+    window.toast('✓ Đã tạo ' + newOrder.code + profitMsg + custMsg, 'success');
   };
 
   /* === Hành động trên đơn (drawer) === */
