@@ -8,16 +8,17 @@ services:
     runtime: static
     buildCommand: ""           # Không cần build — HTML/CSS/JS thuần
     staticPublishPath: .       # Serve từ root project
+    autoDeploy: true           # Tự deploy mỗi khi push nhánh main
     pullRequestPreviewsEnabled: false
 
-    # Cache static assets aggressive
+    # JS/CSS app: luôn revalidate (ETag) để update hiện ngay, không kẹt cache 1h
     headers:
       - path: /styles/*
         name: Cache-Control
-        value: public, max-age=3600
+        value: no-cache
       - path: /scripts/*
         name: Cache-Control
-        value: public, max-age=3600
+        value: no-cache
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=86400
