@@ -97,10 +97,10 @@
 
   function renderPartners() {
     partners = window.STORE.get('partners', window.PARTNERS || []);
-    const q = (document.getElementById('qPartner')?.value || '').trim().toLowerCase();
+    const q = norm((document.getElementById('qPartner')?.value || '').trim());
     const k = document.getElementById('fpKind')?.value || '';
     const list = partners.filter(p =>
-      (!q || [p.name, p.phone, p.vehiclePlate, p.code].some(x => (x||'').toLowerCase().includes(q))) &&
+      (!q || norm([p.name, p.contact, p.phone, p.vehiclePlate, p.code].join(' ')).includes(q)) &&
       (!k || p.kind === k)
     );
     const tbody = document.getElementById('pTbody');

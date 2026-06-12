@@ -174,8 +174,14 @@
   function match(o) {
     if (currentStatus && o.status !== currentStatus) return false;
     if (currentService && o.serviceType !== currentService) return false;
-    const q = document.getElementById('qSearch').value.trim().toLowerCase();
-    if (q && ![o.code, o.custName, o.driverName, o.vehicle, o.cust].some(x => (x||'').toLowerCase().includes(q))) return false;
+    /* Tìm kiếm rộng + KHÔNG phân biệt dấu: mã, khách, người gửi/nhận+SĐT, đối tác (đội xe + lái xe), biển số */
+    const nrm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const q = nrm(document.getElementById('qSearch').value.trim());
+    if (q) {
+      const hay = [o.code, o.custName, o.custPhone, o.senderName, o.senderPhone, o.receiverName, o.receiverPhone,
+        o.driverName, o.partnerName, o.partnerContact, o.vehicle, o.cust].map(nrm).join(' · ');
+      if (!hay.includes(q)) return false;
+    }
     const tm = document.getElementById('fMode').value;
     if (tm && o.transportMode !== tm) return false;
     const dr = document.getElementById('fDriver').value;
