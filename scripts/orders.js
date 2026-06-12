@@ -1080,22 +1080,24 @@
       vehicle = veh ? veh.plate : '—';
     } else {
       partnerId = window.formVal('#oPartner');
-      if (!partnerId) { window.toast('Chọn đối tác ngoài', 'warn'); return; }
-      const p = partners.find(x => x.id === partnerId);
-      if (!p) { window.toast('Đối tác không tồn tại', 'warn'); return; }
       partnerCost = window.moneyVal('#oPartnerCost');
-      if (!partnerCost) { window.toast('Nhập chi phí thuê đối tác', 'warn'); return; }
-      external = true;
-      partnerName = p.name;
-      driverName = '🤝 ' + p.name;
-      vehicle = p.vehiclePlate || '(đối tác)';
-      driver = p.id;
-
-      /* Cộng thống kê cho đối tác */
-      window.STORE.update('partners', p.id, {
-        trips30d: (p.trips30d || 0) + 1,
-        totalSpent30d: (p.totalSpent30d || 0) + partnerCost,
-      });
+      const p = partnerId ? partners.find(x => x.id === partnerId) : null;
+      if (partnerId && !p) { window.toast('Đối tác không tồn tại', 'warn'); return; }
+      external = true; /* đánh dấu sẽ thuê ngoài (kể cả chưa chọn đối tác) */
+      if (p) {
+        partnerName = p.name;
+        driverName = '🤝 ' + p.name;
+        vehicle = p.vehiclePlate || '(đối tác)';
+        driver = p.id;
+        /* Cộng thống kê cho đối tác */
+        window.STORE.update('partners', p.id, {
+          trips30d: (p.trips30d || 0) + 1,
+          totalSpent30d: (p.totalSpent30d || 0) + partnerCost,
+        });
+      } else {
+        /* Chưa chọn đối tác → lưu đơn ở dạng TREO, gán đối tác sau (Sửa đơn / Điều phối) */
+        driver = '—'; driverName = '—'; vehicle = '—'; partnerId = null; partnerName = null;
+      }
     }
 
     /* Tổng hợp từ bảng hàng để giữ tương thích list/drawer cũ */
@@ -1147,7 +1149,7 @@
       /* Vận chuyển */
       driver, driverName, vehicle,
       external, partnerId, partnerName, partnerCost,
-      profit: external ? freight - partnerCost : null,
+      profit: partnerName ? freight - partnerCost : null,
       /* Khác */
       priority: !!document.getElementById('oPriority')?.checked,
       status,
@@ -1173,7 +1175,7 @@
     window.STORE.add('orders', newOrder);
     const custMsg = (!custId && linkedCustId) ? ` · 🆕 đã lưu KH ${linkedCustId}` : '';
     window.closeModal();
-    const profitMsg = external ? ` · LN ${window.fmtShort(freight - partnerCost)}₫` : '';
+    const profitMsg = partnerName ? ` · LN ${window.fmtShort(freight - partnerCost)}₫` : '';
     window.toast('✓ Đã tạo ' + newOrder.code + profitMsg + custMsg, 'success');
   };
 
