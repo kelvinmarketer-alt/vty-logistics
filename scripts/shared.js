@@ -1,4 +1,3 @@
-/* auto-deploy-check: VTY-DEPLOY-OK-9X42 (commit thử kiểm tra webhook — vô hại) */
 /* =========================================================
    VTY Logistics — Shared utilities + App shell
    Dùng chung cho mọi trang.
