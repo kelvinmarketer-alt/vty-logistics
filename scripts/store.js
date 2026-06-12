@@ -177,9 +177,10 @@
       if (i >= 0) {
         arr[i] = { ...arr[i], ...patch };
         _save(key);
-        /* Push to Supabase */
+        /* Push to Supabase — chọn cột định danh KHỚP với identifier được truyền vào
+           (vd đối tác: truyền id 'Pxxx' nhưng có cả code 'DT0xx' → phải dùng cột 'id') */
         if (isSupabaseMode() && TABLE_MAP[key]) {
-          const idCol = ID_COLUMN[key] || (arr[i].code ? 'code' : 'id');
+          const idCol = ID_COLUMN[key] || (arr[i].id === identifier ? 'id' : arr[i].code === identifier ? 'code' : arr[i].no === identifier ? 'no' : 'id');
           window.SB_DATA.update(TABLE_MAP[key], identifier, patch, idCol, arr[i])
             .catch(e => console.warn(`[STORE update ${key} → SB]`, e));
         }
@@ -194,9 +195,9 @@
       const item = arr.find(x => x.id === identifier || x.code === identifier || x.no === identifier);
       _data[key] = arr.filter(x => x.id !== identifier && x.code !== identifier && x.no !== identifier);
       _save(key);
-      /* Push to Supabase */
+      /* Push to Supabase — chọn cột định danh KHỚP với identifier (xem ghi chú ở update) */
       if (isSupabaseMode() && TABLE_MAP[key] && item) {
-        const idCol = ID_COLUMN[key] || (item.code ? 'code' : 'id');
+        const idCol = ID_COLUMN[key] || (item.id === identifier ? 'id' : item.code === identifier ? 'code' : item.no === identifier ? 'no' : 'id');
         window.SB_DATA.remove(TABLE_MAP[key], identifier, idCol)
           .catch(e => console.warn(`[STORE remove ${key} → SB]`, e));
       }
