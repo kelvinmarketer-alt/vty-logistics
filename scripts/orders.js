@@ -765,12 +765,10 @@
     const tmOpts = window.MD.options('transportModes');
     const payOpts = window.MD.get('payMethods').map(p => `<option>${p.label}</option>`).join('');
     const prefillCust = prefillCustId ? customers.find(c => c.id === prefillCustId) : null;
-    const drvOpts = `<option value="">-- Chọn tài xế --</option>` +
-      drivers.map(d => `<option value="${d.id}">${d.name} · ${d.primaryPlate}</option>`).join('');
-    const vehOpts = `<option value="">-- Chọn xe --</option>` +
-      vehicles.map(v => `<option value="${v.id}">${v.plate} · ${v.type}</option>`).join('');
-    const partnerOpts = `<option value="">-- Chọn đối tác --</option>` +
-      partners.map(p => `<option value="${p.id}">${p.code} · ${p.name}${p.vehiclePlate?' · '+p.vehiclePlate:''}</option>`).join('');
+    /* Danh sách cho ô gõ-tìm (thay dropdown) */
+    const drvItems = drivers.map(d => ({ id: d.id, label: d.name, sub: [d.primaryPlate, d.phone, d.code].filter(Boolean).join(' · '), search: `${d.name} ${d.primaryPlate || ''} ${d.phone || ''} ${d.code || ''}` }));
+    const vehItems = vehicles.map(v => ({ id: v.id, label: v.plate, sub: [v.type, v.cap ? 'tải ' + v.cap + (v.capUnit || '') : ''].filter(Boolean).join(' · '), search: `${v.plate} ${v.type || ''}` }));
+    const partnerItems = partners.map(p => ({ id: p.id, label: p.name, sub: [p.code, p.vehiclePlate, (p.contact && p.contact !== p.name) ? '👤 ' + p.contact : ''].filter(Boolean).join(' · '), search: `${p.name} ${p.contact || ''} ${p.vehiclePlate || ''} ${p.phone || ''} ${p.code || ''}` }));
     const curStatus = editOrder && STEPS.includes(editOrder.status) ? editOrder.status : 'confirmed';
     const statusOpts = STEPS.map(s => `<option value="${s}"${s===curStatus?' selected':''}>${STATUS[s].icon} ${STATUS[s].label}</option>`).join('');
     const nextCode = editOrder ? editOrder.code : window.STORE.nextOrderCode();
@@ -867,8 +865,8 @@
       <!-- Internal -->
       <div id="carrierInternal">
         <div class="form-row">
-          <div><label>Tài xế</label><select id="oDriver">${drvOpts}</select></div>
-          <div><label>Xe</label><select id="oVehicle">${vehOpts}</select></div>
+          <div><label>Tài xế</label>${window.searchSelectHTML('oDriver', '', 'Gõ tên / biển số tài xế…')}</div>
+          <div><label>Xe</label>${window.searchSelectHTML('oVehicle', '', 'Gõ biển số / loại xe…')}</div>
         </div>
       </div>
 
@@ -876,7 +874,7 @@
       <div id="carrierExternal" style="display:none">
         <div class="form-row wide">
           <label>Đối tác ngoài *</label>
-          <select id="oPartner" onchange="window.onPartnerChange(this.value)">${partnerOpts}</select>
+          ${window.searchSelectHTML('oPartner', '', 'Gõ tên đội xe / lái xe / biển số…')}
           <div style="margin-top:6px">
             <button type="button" class="btn btn-sm btn-ghost" onclick="window.openInlineAddPartner()">+ Thêm đối tác mới (nhanh)</button>
           </div>
@@ -922,18 +920,25 @@
       if (editOrder.serviceType) setV('oSvc', editOrder.serviceType);
       if (editOrder.transportMode) setV('oMode', editOrder.transportMode);
       if (editOrder.payBy) setV('oPayBy', editOrder.payBy);
+      const setSS = (id, it) => { if (!it) return; const el = document.getElementById(id); if (el) { el.value = it.label; el.dataset.val = String(it.id); } };
       if (editOrder.external) {
         const r = document.querySelector('input[name="oCarrier"][value="external"]');
         if (r) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); }
-        setV('oPartner', editOrder.driver); setV('oPartnerCost', editOrder.partnerCost);
+        const pit = partnerItems.find(x => x.id === (editOrder.partnerId || editOrder.driver));
+        if (pit) { setSS('oPartner', pit); window.onPartnerChange(pit.id); }
+        setV('oPartnerCost', editOrder.partnerCost);
       } else {
-        setV('oDriver', editOrder.driver);
-        const veh = vehicles.find(v => v.plate === editOrder.vehicle); if (veh) setV('oVehicle', veh.id);
+        setSS('oDriver', drvItems.find(x => x.id === editOrder.driver));
+        setSS('oVehicle', vehItems.find(x => x.label === editOrder.vehicle));
       }
     }
     window.onChangeService(document.getElementById('oSvc').value);
     /* Tên người gửi = khách hàng: gõ → gợi ý KH cũ → tự điền SĐT/địa chỉ gửi */
     window.bindCustField('oSenderName', (c) => { if (c) window.fillSenderFromCust(c); });
+    /* Ô gõ-tìm cho Tài xế / Xe / Đối tác (thay dropdown) */
+    window.bindSearchSelect('oDriver', drvItems, () => {});
+    window.bindSearchSelect('oVehicle', vehItems, () => {});
+    window.bindSearchSelect('oPartner', partnerItems, (it) => window.onPartnerChange(it ? it.id : ''));
     if (prefillCust) { const sn = document.getElementById('oSenderName'); if (sn) sn.dataset.custId = prefillCust.id; window.fillSenderFromCust(prefillCust); }
     /* Định dạng dấu chấm cho mọi ô tiền */
     ['oFreight','oCod','oTransferFee','oPaidAmount','oPartnerCost'].forEach(id => window.bindMoneyInput(document.getElementById(id)));
@@ -1038,7 +1043,7 @@
     setTimeout(() => {
       document.querySelector('input[name="oCarrier"][value="external"]').click();
       const sel = document.getElementById('oPartner');
-      if (sel) { sel.value = newP.id; window.onPartnerChange(newP.id); }
+      if (sel) { sel.value = newP.name; sel.dataset.val = newP.id; window.onPartnerChange(newP.id); }
       window.toast('✓ Đã thêm ' + name + ' & chọn vào đơn', 'success');
     }, 100);
   };
@@ -1077,15 +1082,15 @@
     let external = false, partnerId = null, partnerName = null, partnerContact = '', partnerCost = 0;
 
     if (carrierMode === 'internal') {
-      const drvId = window.formVal('#oDriver');
-      const vehId = window.formVal('#oVehicle');
+      const drvId = window.ssVal('#oDriver');
+      const vehId = window.ssVal('#oVehicle');
       const drv = drivers.find(d => d.id === drvId);
       const veh = vehicles.find(v => v.id === vehId);
       driver = drvId || '—';
       driverName = drv ? drv.name : '—';
       vehicle = veh ? veh.plate : '—';
     } else {
-      partnerId = window.formVal('#oPartner');
+      partnerId = window.ssVal('#oPartner');
       partnerCost = window.moneyVal('#oPartnerCost');
       const p = partnerId ? partners.find(x => x.id === partnerId) : null;
       if (partnerId && !p) { window.toast('Đối tác không tồn tại', 'warn'); return; }

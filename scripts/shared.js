@@ -896,6 +896,63 @@ window.bindCustField = function(id, onPick) {
   });
 };
 
+/* =========================================================
+   Ô CHỌN CÓ TÌM KIẾM + GỢI Ý (thay dropdown) — dùng chung
+   searchSelectHTML(id, value, placeholder) → input + hộp gợi ý
+   bindSearchSelect(id, items, onPick) — items: [{id,label,sub,search}]; lưu id vào input.dataset.val
+   ssVal('#id') → lấy id đã chọn
+   ========================================================= */
+window.searchSelectHTML = function (id, value = '', placeholder = 'Gõ để tìm…') {
+  return `<div class="ss-ac" style="position:relative">
+    <input id="${id}" value="${String(value).replace(/"/g, '&quot;')}" placeholder="${placeholder}" autocomplete="off" style="width:100%;box-sizing:border-box">
+    <div id="${id}_sug" class="ss-ac-sug" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:60;background:#fff;border:1px solid var(--line);border-radius:8px;max-height:260px;overflow:auto;box-shadow:0 10px 24px rgba(0,0,0,.14)"></div>
+  </div>`;
+};
+window.ssVal = function (selector, root = document) {
+  const el = root.querySelector(selector);
+  return el ? (el.dataset.val || '') : '';
+};
+window.bindSearchSelect = function (id, items, onPick) {
+  const el = document.getElementById(id);
+  const sug = document.getElementById(id + '_sug');
+  if (!el || !sug) return;
+  items = items || [];
+  const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  function choose(it) {
+    el.value = it.label || '';
+    el.dataset.val = it.id != null ? String(it.id) : '';
+    sug.style.display = 'none';
+    if (typeof onPick === 'function') onPick(it);
+  }
+  function renderSug() {
+    const q = norm(el.value.trim());
+    let list = !q ? items.slice(0, 10)
+      : items.filter(it => norm(it.search || (it.label + ' ' + (it.sub || ''))).includes(q)).slice(0, 12);
+    if (!list.length) { sug.style.display = 'none'; return; }
+    sug.innerHTML = list.map(it => `<div class="ss-ac-item" data-id="${String(it.id).replace(/"/g, '&quot;')}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line)">
+        <div style="font-weight:600;font-size:13px">${it.label || ''}</div>
+        ${it.sub ? `<div style="font-size:11.5px;color:var(--muted)">${it.sub}</div>` : ''}
+      </div>`).join('');
+    sug.style.display = 'block';
+    sug.querySelectorAll('.ss-ac-item').forEach(d => {
+      d.onmousedown = (e) => { e.preventDefault(); const it = items.find(x => String(x.id) === d.dataset.id); if (it) choose(it); };
+      d.onmouseenter = () => d.style.background = 'var(--bg)';
+      d.onmouseleave = () => d.style.background = '';
+    });
+  }
+  el.addEventListener('input', () => { el.dataset.val = ''; renderSug(); });
+  el.addEventListener('focus', renderSug);
+  el.addEventListener('blur', () => {
+    setTimeout(() => { sug.style.display = 'none'; }, 160);
+    /* gõ trùng khít 1 mục → tự chọn; gõ linh tinh → bỏ chọn */
+    if (!el.dataset.val) {
+      const exact = items.find(it => norm(it.label) === norm(el.value));
+      if (exact) { el.dataset.val = String(exact.id); if (typeof onPick === 'function') onPick(exact); }
+      else if (typeof onPick === 'function') onPick(null);
+    }
+  });
+};
+
 window.toggleSidebar = function(force) {
   const sb = document.querySelector('.sidebar');
   const ov = document.querySelector('.sidebar-overlay');
