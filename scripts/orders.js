@@ -41,7 +41,7 @@
   function loadState(o) {
     if (['delivered', 'reconciled', 'cancelled'].includes(o.status)) return null;
     if (o.status === 'transit') return { label: '🚚 Đang chạy', bg: '#EDE9FE', fg: '#7C3AED' };
-    if (!o.vehicle) return { label: '⚠️ Treo (chưa xếp xe)', bg: '#FEF3C7', fg: '#B45309' };
+    if (!o.vehicle || o.vehicle === '—') return { label: '⚠️ Treo (chưa xếp xe)', bg: '#FEF3C7', fg: '#B45309' };
     return { label: '📋 Đã xếp xe', bg: '#DBEAFE', fg: '#1D4ED8' };
   }
 
@@ -122,7 +122,7 @@
           <div>👤 <b>${o.custName || '—'}</b> <span style="color:var(--muted)">${o.cust ? '(' + o.cust + ' · ' + o.staff + ')' : ''}</span></div>
           <div>🚏 ${(o.pickup||'').split(',')[0] || '—'} → ${(o.drop||'').split(',')[0] || '—'}</div>
           <div>📦 ${o.qty || 0} ${(o.unit||'').toLowerCase()}${o.weight ? ' · ' + o.weight + 'kg' : ''}</div>
-          <div>🚚 ${o.vehicle || '<span style="color:var(--muted)">chưa xếp xe</span>'}${o.driverName ? ' · ' + o.driverName : ''}${o.external ? ' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>' : ''}</div>
+          <div>🚚 ${(o.vehicle && o.vehicle !== '—') ? o.vehicle : '<span style="color:var(--muted)">chưa xếp xe</span>'}${(o.driverName && o.driverName !== '—') ? ' · ' + o.driverName : ''}${o.external ? ' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>' : ''}</div>
         </div>
         <div class="oc-foot">
           <span><span style="color:var(--muted);font-size:11px">Cước</span> <b>${window.fmt(o.freight)}</b></span>
@@ -314,7 +314,7 @@
     /* đơn chưa giao xong (đang trong vòng vận hành) */
     const active = orders.filter(o => !['cancelled', 'delivered', 'reconciled'].includes(o.status));
     const groups = {};
-    active.forEach(o => { const k = o.vehicle || '__none__'; (groups[k] = groups[k] || []).push(o); });
+    active.forEach(o => { const k = (o.vehicle && o.vehicle !== '—') ? o.vehicle : '__none__'; (groups[k] = groups[k] || []).push(o); });
     const pending = groups['__none__'] || [];
     const vehKeys = Object.keys(groups).filter(k => k !== '__none__').sort();
 
@@ -544,7 +544,7 @@
     document.getElementById('iPickup').textContent = senderTxt + o.pickup;
     document.getElementById('iDrop').textContent   = recvTxt + o.drop;
     document.getElementById('iNote').textContent   = o.note || '(không có)';
-    document.getElementById('iDriver').innerHTML  = o.driverName ? (o.driverName + (o.external?' <span class="alert-badge warn" style="font-size:10px;margin-left:6px">🤝 Đối tác ngoài</span>':'')) : '<span style="color:var(--muted)">Chưa phân công</span>';
+    document.getElementById('iDriver').innerHTML  = (o.driverName && o.driverName !== '—') ? (o.driverName + (o.external?' <span class="alert-badge warn" style="font-size:10px;margin-left:6px">🤝 Đối tác ngoài</span>':'')) : '<span style="color:var(--muted)">Chưa phân công</span>';
     document.getElementById('iVehicle').textContent = o.vehicle || '—';
 
     /* ===== Khối Thanh toán (đẹp + trạng thái thu tiền) ===== */
