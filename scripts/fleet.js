@@ -196,12 +196,12 @@
           </select></div>
       </div>
       <div class="form-row">
-        <div><label>Tên đối tác *</label><input id="pName" value="${p.name}" placeholder="VD: Cty Đại Phong / A.Tuấn"></div>
-        <div><label>Người liên hệ</label><input id="pContact" value="${p.contact}" placeholder="VD: Anh Phong (GĐ)"></div>
+        <div><label>Tên đối tác / Đội xe *</label><input id="pName" value="${p.name}" placeholder="VD: Anh Phương / Cty Đại Phong"></div>
+        <div><label>Lái xe (người liên hệ)</label><input id="pContact" value="${p.contact}" placeholder="VD: Xe Anh Huê"></div>
       </div>
       <div class="form-row">
-        <div><label>SĐT *</label><input id="pPhone" value="${p.phone}" placeholder="09xx xxx xxx"></div>
-        <div><label>Biển số xe</label><input id="pPlate" value="${p.vehiclePlate||''}" placeholder="(trống nếu chỉ tài xế)" style="font-family:ui-monospace,monospace"></div>
+        <div><label>SĐT lái xe</label><input id="pPhone" value="${p.phone}" placeholder="09xx xxx xxx"></div>
+        <div><label>Biển số xe</label><input id="pPlate" value="${p.vehiclePlate||''}" placeholder="VD: 89C-20093" style="font-family:ui-monospace,monospace"></div>
       </div>
       <div class="form-row">
         <div><label>Loại xe</label><input id="pVehType" value="${p.vehicleType||''}" placeholder="VD: Xe tải 5T đông lạnh"></div>
@@ -231,8 +231,7 @@
   window.submitPartner = function(id, isEdit) {
     const name = window.formVal('#pName');
     const phone = window.formVal('#pPhone');
-    if (!name) { window.toast('Nhập tên đối tác', 'warn'); return; }
-    if (!phone) { window.toast('Nhập SĐT', 'warn'); return; }
+    if (!name) { window.toast('Nhập tên đối tác / đội xe', 'warn'); return; }
     const data = {
       id, code: window.formVal('#pCode'),
       kind: window.formVal('#pKind'),

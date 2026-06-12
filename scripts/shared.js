@@ -810,6 +810,44 @@ window.upsertCustomerFromOrder = function (o, opts) {
   return code;
 };
 
+/* =========================================================
+   TỰ TẠO / NHẬN DIỆN ĐỐI TÁC NGOÀI TỪ ĐƠN HÀNG
+   - Mẫu Excel: ĐỘI XE = tên đối tác · LÁI XE = người liên hệ · BIỂN KS = biển số.
+   - Trùng (đội xe + BKS + lái xe) → dùng lại, KHÔNG thêm. Khác → tạo đối tác mới.
+   - Gắn o.partnerId; trả về id đối tác.
+   ========================================================= */
+window.upsertPartnerFromOrder = function (o) {
+  if (!o || !o.external) return null;
+  const name = (o.partnerName || '').trim();        /* đội xe */
+  const contact = (o.partnerContact || '').trim();  /* lái xe */
+  const plate = (o.vehicle && o.vehicle !== '—' && o.vehicle !== '(đối tác)') ? String(o.vehicle).trim() : '';
+  if (!name && !plate && !contact) return null;
+  const normT = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const normP = s => String(s || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+  const partners = window.STORE.get('partners', window.PARTNERS || []);
+  /* Trùng đủ bộ ĐỘI XE + BKS + LÁI XE → dùng lại */
+  let p = partners.find(x => normT(x.name) === normT(name) && normP(x.vehiclePlate) === normP(plate) && normT(x.contact) === normT(contact));
+  if (p) {
+    if (o.code && o.partnerId !== p.id) window.STORE.update('orders', o.code, { partnerId: p.id });
+    o.partnerId = p.id;
+    return p.id;
+  }
+  /* Chưa có → tạo đối tác mới (mã DT tự sinh) */
+  const code = window.STORE.nextId('partners', 'DT', 3);
+  const id = 'P' + Date.now().toString(36) + Math.floor(Math.random() * 100);
+  const newP = {
+    id, code, kind: 'company',
+    name: name || contact || plate, contact: contact || name || '',
+    phone: '', vehiclePlate: plate || null, vehicleType: '',
+    capacity: 0, capUnit: 'tấn', specialty: '', pricing: '', rating: 5.0,
+    trips30d: 0, totalSpent30d: 0, active: true, note: '(tự thêm từ nhập Excel)',
+  };
+  window.STORE.add('partners', newP);
+  if (o.code) window.STORE.update('orders', o.code, { partnerId: id });
+  o.partnerId = id;
+  return id;
+};
+
 /* Ô khách hàng: GÕ TỰ DO + gợi ý hiện ngay bên dưới (không dùng dropdown trình duyệt) */
 window.custInputHTML = function(id, value = '', placeholder = 'Gõ tên / mã / SĐT khách…') {
   return `<div class="cust-ac" style="position:relative">

@@ -156,13 +156,16 @@
 
     orders: {
       storeKey: 'orders', title: 'Đơn hàng',
-      /* Thứ tự cột MẶC ĐỊNH = đúng mẫu Excel của công ty (19 cột):
-         Nhà xe · Ngày gửi · Tên KH · SĐT · Địa chỉ lấy · Tên nhận · SĐT · Địa chỉ trả · Mặt hàng ·
-         Số lượng · TC nhận · TC trả · Giá cước xe · Tổng cước · Lợi nhuận(bỏ) · Trạng thái · Đã TT · TT(bỏ) · Ghi chú */
-      positional: ['carrier', 'date', 'custName', 'senderPhone', 'pickup', 'receiverName', 'receiverPhone', 'drop',
+      /* Thứ tự cột MẶC ĐỊNH = đúng mẫu Excel công ty (21 cột):
+         Lái xe · Đội xe · Biển KS · Ngày gửi · Tên KH · SĐT · Địa chỉ lấy · Tên nhận · SĐT · Địa chỉ trả ·
+         Mặt hàng · Số lượng · TC nhận · TC trả · Giá cước xe · Tổng cước · Lợi nhuận(bỏ) · Trạng thái · Đã TT · TT(bỏ) · Ghi chú
+         ĐỘI XE = tên đối tác · LÁI XE = người liên hệ · BIỂN KS = biển số. */
+      positional: ['partnerContact', 'partnerName', 'plate', 'date', 'custName', 'senderPhone', 'pickup', 'receiverName', 'receiverPhone', 'drop',
         'goods', 'weight', 'transferIn', 'transferOut', 'partnerCost', 'freight', '', 'statusText', 'paidAmount', '', 'note'],
       cols: [
-        { key: 'carrier', label: 'Nhà xe', aliases: ['nha xe', 'xe', 'doi tac', 'carrier', 'nha van chuyen'] },
+        { key: 'partnerContact', label: 'Lái xe (người LH)', aliases: ['lai xe', 'tai xe', 'nguoi lien he', 'contact', 'driver'] },
+        { key: 'partnerName', label: 'Đội xe (đối tác)', aliases: ['doi xe', 'nha xe', 'doi tac', 'don vi van chuyen', 'carrier'] },
+        { key: 'plate', label: 'Biển KS', aliases: ['bien ks', 'bien so', 'bks', 'bien kiem soat', 'plate'] },
         { key: 'date', label: 'Ngày gửi', aliases: ['ngay gui', 'ngay', 'date', 'ngay tao'] },
         { key: 'custName', label: 'Tên khách hàng', required: true, aliases: ['ten khach hang', 'khach hang', 'kh', 'customer', 'nguoi gui', 'ten nguoi gui', 'ten gui'] },
         { key: 'senderPhone', label: 'SĐT khách', aliases: ['so dien thoai', 'sdt', 'sdt gui', 'sdt khach', 'dien thoai gui', 'phone'] },
@@ -196,8 +199,12 @@
         const item = { desc: r.goods || '', unit: r.unit || 'Thùng', qty, weight, price, amount: qty * price };
         const custs = window.STORE.get('customers', []);
         const matched = custs.find(c => norm(c.name) === norm(r.custName));
-        const carrier = (r.carrier || '').trim();
-        const external = !!carrier;
+        /* Đối tác ngoài: ĐỘI XE = tên đối tác · LÁI XE = người LH · BKS = biển số */
+        const partnerName = (r.partnerName || r.carrier || '').trim();
+        const partnerContact = (r.partnerContact || '').trim();
+        const plate = (r.plate || '').trim();
+        const external = !!(partnerName || plate || partnerContact);
+        const display = partnerName || partnerContact || plate;
         const partnerCost = nInt(r.partnerCost);
         const freight = nInt(r.freight);
         /* 2 cột trung chuyển (nhận + trả) cộng lại; nếu mẫu khác chỉ 1 cột thì lấy transferFee */
@@ -208,7 +215,7 @@
         if (/huy|cancel/.test(st)) status = 'cancelled';
         else if (/doi soat/.test(st)) status = 'reconciled';
         else if (/da giao|giao xong|hoan thanh|xong/.test(st)) status = 'delivered';
-        else if (/dang giao|tren duong|van chuyen|di duong/.test(st)) status = 'transit';
+        else if (/dang giao|tren duong|van chuyen|di duong|xe dang di|dang di/.test(st)) status = 'transit';
         else if (/lay hang|dang lay|nhan hang/.test(st)) status = 'pickup';
         return {
           code, date: (r.date || '').trim() || new Date().toLocaleString('vi-VN'),
@@ -223,9 +230,14 @@
           qty, weight, unit: item.unit, goodsValue: item.amount,
           freight, cod: nInt(r.cod), transferFee, paidAmount: nInt(r.paidAmount),
           payBy: r.payBy || 'Người gửi trả', receiveMethod: '', otherDocs: '', loadOrder: '',
-          driver: external ? carrier : '—', driverName: external ? ('🤝 ' + carrier) : '—',
-          vehicle: external ? carrier : '—', external,
-          partnerId: null, partnerName: external ? carrier : null, partnerCost,
+          external,
+          partnerId: null,
+          partnerName: external ? (partnerName || display) : null,
+          partnerContact: external ? partnerContact : '',
+          partnerCost,
+          driver: '—',
+          driverName: external ? ('🤝 ' + display) : '—',
+          vehicle: external ? (plate || display) : '—',
           profit: external ? (freight - partnerCost) : null,
           priority: false, status, staff: r.staff || '', note: r.note || '(nhập từ Excel)',
         };
@@ -623,24 +635,31 @@ Quy tắc:
   function doImport() {
     const key = _curKey, schema = SCHEMAS[key];
     if (!_parsed || !_parsed.valid.length) return;
-    let n = 0, newCust = 0;
+    let n = 0, newCust = 0, newPartner = 0;
     _parsed.valid.forEach(r => {
       const typed = {};
       schema.cols.forEach(c => { typed[c.key] = c.type === 'int' ? nInt(r[c.key]) : r[c.key]; });
       const built = schema.build(typed);
-      /* Đơn hàng: tạo/nhận diện KH TRƯỚC để đơn trỏ KH hợp lệ (tránh FK 23503), rồi mới lưu đơn */
+      /* Đơn hàng: tạo/nhận diện KH + ĐỐI TÁC TRƯỚC để đơn trỏ tới bản ghi hợp lệ (tránh FK), rồi mới lưu đơn */
       if (key === 'orders' && window.upsertCustomerFromOrder) {
         const before = window.STORE.get('customers', []).length;
         const cid = window.upsertCustomerFromOrder(built, { increment: true });
         if (cid) built.cust = cid;
         if (window.STORE.get('customers', []).length > before) newCust++;
       }
+      if (key === 'orders' && built.external && window.upsertPartnerFromOrder) {
+        const beforeP = window.STORE.get('partners', []).length;
+        const pid = window.upsertPartnerFromOrder(built);
+        if (pid) built.partnerId = pid;
+        if (window.STORE.get('partners', []).length > beforeP) newPartner++;
+      }
       window.STORE.add(schema.storeKey, built);
       n++;
     });
     window.closeModal();
     const cm = (key === 'orders' && newCust) ? ` · 🆕 ${newCust} KH mới` : '';
-    window.toast(`✓ Đã nhập ${n} ${schema.title.toLowerCase()}${cm}`, 'success');
+    const pm = (key === 'orders' && newPartner) ? ` · 🤝 ${newPartner} đối tác mới` : '';
+    window.toast(`✓ Đã nhập ${n} ${schema.title.toLowerCase()}${cm}${pm}`, 'success');
     if (typeof window.STORE.subscribe === 'function') { /* các trang tự re-render qua subscribe */ }
   }
 
