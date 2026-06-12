@@ -606,13 +606,14 @@ Quy tắc:
       const typed = {};
       schema.cols.forEach(c => { typed[c.key] = c.type === 'int' ? nInt(r[c.key]) : r[c.key]; });
       const built = schema.build(typed);
-      window.STORE.add(schema.storeKey, built);
-      /* Đơn hàng: tự lưu/nhận diện KH (mã KH tự sinh; trùng tên+SĐT → tăng số đơn) */
+      /* Đơn hàng: tạo/nhận diện KH TRƯỚC để đơn trỏ KH hợp lệ (tránh FK 23503), rồi mới lưu đơn */
       if (key === 'orders' && window.upsertCustomerFromOrder) {
         const before = window.STORE.get('customers', []).length;
-        window.upsertCustomerFromOrder(built, { increment: true });
+        const cid = window.upsertCustomerFromOrder(built, { increment: true });
+        if (cid) built.cust = cid;
         if (window.STORE.get('customers', []).length > before) newCust++;
       }
+      window.STORE.add(schema.storeKey, built);
       n++;
     });
     window.closeModal();

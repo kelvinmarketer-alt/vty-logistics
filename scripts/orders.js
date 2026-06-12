@@ -1156,19 +1156,21 @@
     };
     if (editingOrderCode) {
       delete newOrder.date; /* giữ nguyên ngày tạo gốc */
+      /* Nhận diện/đồng bộ KH TRƯỚC (không tăng số đơn) → cust trỏ KH hợp lệ, tránh lỗi khóa ngoại */
+      const linkedCustId = window.upsertCustomerFromOrder(newOrder, { increment: false });
+      if (linkedCustId) newOrder.cust = linkedCustId;
       window.STORE.update('orders', editingOrderCode, newOrder);
       const code = editingOrderCode;
       editingOrderCode = null;
-      /* Nhận diện/đồng bộ KH nhưng KHÔNG tăng số đơn (chỉ là sửa đơn cũ) */
-      window.upsertCustomerFromOrder(newOrder, { increment: false });
       window.closeModal();
       window.toast('✓ Đã lưu thay đổi đơn ' + code, 'success');
       render();
       return;
     }
-    window.STORE.add('orders', newOrder);
-    /* Đơn hàng là nơi nhập KH: tự lưu / nhận diện KH + tính số đơn kế tiếp nếu trùng */
+    /* Đơn hàng là nơi nhập KH: tạo/nhận diện KH TRƯỚC để đơn trỏ tới KH đã tồn tại (tránh FK 23503) */
     const linkedCustId = window.upsertCustomerFromOrder(newOrder, { increment: true });
+    if (linkedCustId) newOrder.cust = linkedCustId;
+    window.STORE.add('orders', newOrder);
     const custMsg = (!custId && linkedCustId) ? ` · 🆕 đã lưu KH ${linkedCustId}` : '';
     window.closeModal();
     const profitMsg = external ? ` · LN ${window.fmtShort(freight - partnerCost)}₫` : '';

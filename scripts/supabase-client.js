@@ -149,6 +149,19 @@
       }
       if (changed) return true;
     }
+    /* Vi phạm khóa ngoại (23503): KH/tài xế/đối tác chưa kịp có trên server (đẩy bất đồng bộ)
+       hoặc giá trị rỗng "—"/"". → null cột FK đó rồi thử lại; giá trị gốc vẫn nằm trong cột
+       'doc' nên khi tải lại app vẫn khôi phục đúng liên kết. */
+    if (error && (error.code === '23503' || /foreign key constraint/i.test(msg))) {
+      const det = String(error.details || '');
+      const col = (det.match(/Key \(([^)]+)\)=/) || [])[1];
+      if (col && col in mapped && mapped[col] != null) { mapped[col] = null; return true; }
+      let changed = false;
+      for (const k of Object.keys(mapped)) {
+        if (/_id$/.test(k) && mapped[k] !== null) { mapped[k] = null; changed = true; }
+      }
+      if (changed) return true;
+    }
     return false;
   }
 
