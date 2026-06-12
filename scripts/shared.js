@@ -1,4 +1,3 @@
-/* auto-deploy-check: AUTODEPLOY-K7M2 (test GitHub Actions tự deploy — vô hại) */
 /* =========================================================
    VTY Logistics — Shared utilities + App shell
    Dùng chung cho mọi trang.
