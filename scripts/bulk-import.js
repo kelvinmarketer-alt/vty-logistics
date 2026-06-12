@@ -11,6 +11,16 @@
       .replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   }
   function nInt(v) { const n = parseInt(String(v ?? '').replace(/[^\d-]/g, ''), 10); return isNaN(n) ? 0 : n; }
+  /* Lọc TRỌNG LƯỢNG (kg) từ chữ tự do, vd "92 cuộn = 3.400kg" → 3400, "5 tấn" → 5000.
+     KHÔNG gộp mọi chữ số (tránh "92 cuộn = 3.400kg" → 923400). Không thấy đơn vị → 0. */
+  function kgFromText(v) {
+    const s = String(v ?? '');
+    let m = s.match(/([\d.,]+)\s*kg/i);
+    if (m) return parseInt(m[1].replace(/[^\d]/g, ''), 10) || 0;
+    m = s.match(/([\d.,]+)\s*t(?:ấn|an)\b/i);
+    if (m) return Math.round((parseFloat(m[1].replace(/\./g, '').replace(',', '.')) || 0) * 1000);
+    return 0;
+  }
 
   /* === Schema từng module === */
   const SCHEMAS = {
@@ -174,7 +184,7 @@
         { key: 'receiverPhone', label: 'SĐT nhận', aliases: ['so dien thoai', 'sdt nhan', 'sdt nguoi nhan', 'dien thoai nhan'] },
         { key: 'drop', label: 'Địa chỉ trả', aliases: ['dia chi tra', 'dia chi nhan', 'giao hang', 'diem giao', 'drop', 'noi nhan'] },
         { key: 'goods', label: 'Mặt hàng', required: true, aliases: ['mat hang', 'hang hoa', 'hang', 'goods', 'dien giai', 'mo ta', 'noi dung hang'] },
-        { key: 'weight', label: 'Số lượng (kg)', type: 'int', aliases: ['so luong', 'sl', 'trong luong', 'tl', 'kg', 'weight', 'khoi luong'] },
+        { key: 'weight', label: 'Số lượng / quy cách', aliases: ['so luong', 'sl', 'trong luong', 'tl', 'kg', 'weight', 'khoi luong', 'quy cach'] },
         { key: 'transferIn', label: 'Trung chuyển nhận', type: 'int', aliases: ['trung chuyen nhan hang', 'trung chuyen nhan', 'tc nhan'] },
         { key: 'transferOut', label: 'Trung chuyển trả', type: 'int', aliases: ['trung chuyen tra hang', 'trung chuyen tra', 'tc tra'] },
         { key: 'partnerCost', label: 'Giá cước xe (chi nhà xe)', type: 'int', aliases: ['gia cuoc xe', 'cuoc xe', 'chi phi xe', 'gia xe'] },
@@ -195,8 +205,11 @@
       ],
       build(r) {
         const code = window.STORE.nextOrderCode();
-        const qty = nInt(r.qty) || 1, price = nInt(r.price), weight = nInt(r.weight);
-        const item = { desc: r.goods || '', unit: r.unit || 'Thùng', qty, weight, price, amount: qty * price };
+        const qtyText = String(r.weight || '').trim();             /* SỐ LƯỢNG = chữ tự do, vd "92 cuộn = 3.400kg" */
+        const weight = kgFromText(qtyText);                         /* chỉ lấy kg thật, không gộp mọi số */
+        const qty = nInt(r.qty) || nInt((qtyText.match(/^\s*([\d.,]+)/) || [])[1]) || 1;
+        const price = nInt(r.price);
+        const item = { desc: r.goods || '', unit: r.unit || 'kiện', qty, weight, price, amount: qty * price };
         const custs = window.STORE.get('customers', []);
         const matched = custs.find(c => norm(c.name) === norm(r.custName));
         /* Đối tác ngoài: ĐỘI XE = tên đối tác · LÁI XE = người LH · BKS = biển số */
@@ -226,7 +239,7 @@
           deliveryPlace: '', deliveryDate: '', serviceType: 'lien-tinh', transportMode: 'duong-bo',
           route: r.route || '', cargoType: r.cargoType || '',
           pickup: r.pickup || '—', drop: r.drop || '—',
-          items: [item], goods: `${item.desc}${weight ? ' · ' + weight + 'kg' : ''}`.trim() || item.desc,
+          items: [item], goods: `${item.desc}${qtyText ? ' · ' + qtyText : ''}`.trim() || item.desc,
           qty, weight, unit: item.unit, goodsValue: item.amount,
           freight, cod: nInt(r.cod), transferFee, paidAmount: nInt(r.paidAmount),
           payBy: r.payBy || 'Người gửi trả', receiveMethod: '', otherDocs: '', loadOrder: '',

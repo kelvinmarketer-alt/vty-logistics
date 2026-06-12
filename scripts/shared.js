@@ -825,8 +825,11 @@ window.upsertPartnerFromOrder = function (o) {
   const normT = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const normP = s => String(s || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
   const partners = window.STORE.get('partners', window.PARTNERS || []);
-  /* Trùng đủ bộ ĐỘI XE + BKS + LÁI XE → dùng lại */
-  let p = partners.find(x => normT(x.name) === normT(name) && normP(x.vehiclePlate) === normP(plate) && normT(x.contact) === normT(contact));
+  /* Đối sánh theo BIỂN SỐ (mỗi xe = 1 đối tác) — không phân biệt hoa thường/chính tả tên.
+     Không có biển số thì mới so theo tên đội xe + lái xe. */
+  let p = null;
+  if (plate) p = partners.find(x => x.vehiclePlate && normP(x.vehiclePlate) === normP(plate));
+  if (!p && !plate) p = partners.find(x => normT(x.name) === normT(name) && normT(x.contact) === normT(contact));
   if (p) {
     if (o.code && o.partnerId !== p.id) window.STORE.update('orders', o.code, { partnerId: p.id });
     o.partnerId = p.id;

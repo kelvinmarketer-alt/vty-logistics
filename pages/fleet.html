@@ -136,11 +136,20 @@
           <option value="freelance">👤 Tự do</option>
         </select>
       </div>
+      <div id="pBulkBar" style="display:none;align-items:center;gap:10px;margin:8px 0;padding:8px 12px;background:var(--navy-soft,#EEF2FB);border:1px solid var(--navy-soft);border-radius:8px;font-size:13px">
+        <b><span id="pBulkCount">0</span> đối tác đã chọn</b>
+        <button class="btn btn-sm btn-ghost" onclick="window.bulkPartnerStatus(true)">🟢 Bật hoạt động</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.bulkPartnerStatus(false)">⚫ Tạm ngưng</button>
+        <button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="window.bulkDeletePartners()">🗑 Xoá đã chọn</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-sm btn-ghost" onclick="window.clearPartnerSel()">Bỏ chọn</button>
+      </div>
       <div class="table-card">
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
+                <th style="width:30px"><input type="checkbox" id="selAllP" title="Chọn tất cả" style="width:15px;height:15px;cursor:pointer"></th>
                 <th>Mã</th>
                 <th>Đối tác</th>
                 <th class="hide-md">Loại</th>

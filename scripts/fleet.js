@@ -51,14 +51,16 @@
     return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '')
       .replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   }
-  /* 1 đơn có thuộc đối tác p không? Khớp theo: partnerId · biển số · TÊN (vehicle/partnerName/driverName).
-     Cần thiết vì đơn nhập Excel lưu vehicle = tên nhà xe (vd "Xe A Châu"), không có biển số / partnerId. */
+  function normPlate(s) { return String(s == null ? '' : s).replace(/[^a-z0-9]/gi, '').toUpperCase(); }
+  /* 1 đơn có thuộc đối tác p không?
+     - Đơn ĐÃ gắn partnerId → CHỈ tính cho đúng đối tác đó (tránh đếm trùng khi nhiều đối tác trùng tên/biển số).
+     - Đơn chưa gắn (cũ) → đoán theo biển số (chuẩn hóa), rồi tới tên nếu đối tác không có biển số. */
   function orderBelongsToPartner(p, o) {
     if (!o.external) return false;
-    if (o.partnerId && o.partnerId === p.id) return true;
-    if (p.vehiclePlate && o.vehicle === p.vehiclePlate) return true;
+    if (o.partnerId) return o.partnerId === p.id;
+    if (p.vehiclePlate && normPlate(o.vehicle) === normPlate(p.vehiclePlate)) return true;
     const nm = norm(p.name);
-    if (nm && (norm(o.partnerName) === nm || norm(o.vehicle) === nm || norm(o.driverName) === nm)) return true;
+    if (!p.vehiclePlate && nm && (norm(o.partnerName) === nm || norm(o.vehicle) === nm || norm(o.driverName) === nm)) return true;
     return false;
   }
   /* Tải của đối tác = mọi đơn đang vận hành thuộc đối tác đó (không chỉ theo biển số) */
@@ -123,6 +125,7 @@
       const hasWaiting = (window.STORE.get('orders', window.ORDERS || []) || []).some(o => (o.status === 'confirmed' || o.status === 'pickup') && orderBelongsToPartner(p, o));
       const canRun = ld.count && !ld.running && hasWaiting;
       return `<tr data-id="${p.id}">
+        <td onclick="event.stopPropagation()"><input type="checkbox" class="prow-chk" data-id="${p.id}" style="width:15px;height:15px;cursor:pointer"></td>
         <td><b>${p.code}</b></td>
         <td>
           <div class="cust-cell">
@@ -152,11 +155,22 @@
           </div>
         </td>
       </tr>`;
-    }).join('') || `<tr><td colspan="9" style="padding:40px;text-align:center;color:var(--muted)">Không có đối tác nào khớp.</td></tr>`;
+    }).join('') || `<tr><td colspan="10" style="padding:40px;text-align:center;color:var(--muted)">Không có đối tác nào khớp.</td></tr>`;
 
     tbody.querySelectorAll('tr[data-id]').forEach(tr => {
       tr.onclick = () => openPartner(tr.dataset.id);
     });
+    /* Chọn hàng loạt */
+    tbody.querySelectorAll('.prow-chk').forEach(chk => {
+      chk.onclick = (e) => e.stopPropagation();
+      chk.onchange = updatePartnerBulkBar;
+    });
+    const selAllP = document.getElementById('selAllP');
+    if (selAllP) { selAllP.checked = false; selAllP.onchange = () => {
+      tbody.querySelectorAll('.prow-chk').forEach(c => c.checked = selAllP.checked);
+      updatePartnerBulkBar();
+    }; }
+    updatePartnerBulkBar();
     tbody.querySelectorAll('button[data-act]').forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation();
@@ -175,6 +189,42 @@
       };
     });
   }
+
+  /* ===== Chọn / đổi trạng thái / xoá hàng loạt đối tác ===== */
+  function selectedPartnerIds() {
+    return [...document.querySelectorAll('#pTbody .prow-chk:checked')].map(c => c.dataset.id);
+  }
+  function updatePartnerBulkBar() {
+    const ids = selectedPartnerIds();
+    const bar = document.getElementById('pBulkBar');
+    const cnt = document.getElementById('pBulkCount');
+    if (cnt) cnt.textContent = ids.length;
+    if (bar) bar.style.display = ids.length ? 'flex' : 'none';
+    const all = document.querySelectorAll('#pTbody .prow-chk');
+    const selAllP = document.getElementById('selAllP');
+    if (selAllP) selAllP.checked = all.length > 0 && ids.length === all.length;
+  }
+  window.clearPartnerSel = function () {
+    document.querySelectorAll('#pTbody .prow-chk').forEach(c => c.checked = false);
+    const selAllP = document.getElementById('selAllP'); if (selAllP) selAllP.checked = false;
+    updatePartnerBulkBar();
+  };
+  window.bulkPartnerStatus = function (active) {
+    const ids = selectedPartnerIds();
+    if (!ids.length) { window.toast('Chưa chọn đối tác nào', 'warn'); return; }
+    ids.forEach(id => window.STORE.update('partners', id, { active: !!active }));
+    window.toast(`Đã ${active ? 'bật hoạt động' : 'tạm ngưng'} ${ids.length} đối tác`, 'success');
+    window.clearPartnerSel(); renderPartners();
+  };
+  window.bulkDeletePartners = function () {
+    const ids = selectedPartnerIds();
+    if (!ids.length) { window.toast('Chưa chọn đối tác nào', 'warn'); return; }
+    window.confirmDelete(`Xoá ${ids.length} đối tác đã chọn?`, () => {
+      ids.forEach(id => window.STORE.remove('partners', id));
+      window.toast(`Đã xoá ${ids.length} đối tác`, 'danger');
+      window.clearPartnerSel(); renderPartners();
+    });
+  };
 
   window.openPartner = function(id) {
     const isEdit = !!id;
