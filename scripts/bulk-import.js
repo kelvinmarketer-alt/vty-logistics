@@ -156,32 +156,39 @@
 
     orders: {
       storeKey: 'orders', title: 'Đơn hàng',
-      /* Thứ tự cột MẶC ĐỊNH khi dán Excel KHÔNG có dòng tiêu đề (khớp mẫu của VTY:
-         Nhà xe · Ngày · Người gửi · SĐT gửi · Điểm lấy · Người nhận · SĐT nhận · Điểm giao · Loại hàng · Mô tả).
-         Các cột TIỀN (cước/COD) cố ý để TRỐNG → người dùng tự gán, tránh nhập nhầm số tiền thật. */
-      positional: ['carrier', 'date', 'custName', 'senderPhone', 'pickup', 'receiverName', 'receiverPhone', 'drop', 'cargoType', 'goods'],
+      /* Thứ tự cột MẶC ĐỊNH = đúng mẫu Excel của công ty (19 cột):
+         Nhà xe · Ngày gửi · Tên KH · SĐT · Địa chỉ lấy · Tên nhận · SĐT · Địa chỉ trả · Mặt hàng ·
+         Số lượng · TC nhận · TC trả · Giá cước xe · Tổng cước · Lợi nhuận(bỏ) · Trạng thái · Đã TT · TT(bỏ) · Ghi chú */
+      positional: ['carrier', 'date', 'custName', 'senderPhone', 'pickup', 'receiverName', 'receiverPhone', 'drop',
+        'goods', 'weight', 'transferIn', 'transferOut', 'partnerCost', 'freight', '', 'statusText', 'paidAmount', '', 'note'],
       cols: [
-        { key: 'custName', label: 'Khách hàng (người gửi)', required: true, aliases: ['khach hang', 'kh', 'customer', 'nguoi gui', 'ten nguoi gui', 'ten gui'] },
-        { key: 'senderPhone', label: 'SĐT khách/gửi', aliases: ['sdt gui', 'sdt khach', 'sdt nguoi gui', 'dien thoai gui', 'phone'] },
-        { key: 'pickup', label: 'Điểm lấy / địa chỉ gửi', aliases: ['dia chi gui', 'lay hang', 'diem lay', 'pickup', 'noi gui'] },
-        { key: 'receiverName', label: 'Người nhận', aliases: ['nguoi nhan', 'ten nguoi nhan', 'receiver', 'ten nhan'] },
-        { key: 'receiverPhone', label: 'SĐT nhận', aliases: ['sdt nhan', 'sdt nguoi nhan', 'dien thoai nhan'] },
-        { key: 'drop', label: 'Điểm giao / địa chỉ nhận', aliases: ['dia chi nhan', 'giao hang', 'diem giao', 'drop', 'noi nhan'] },
-        { key: 'cargoType', label: 'Loại hàng', aliases: ['loai hang', 'mat hang', 'cargo'] },
-        { key: 'goods', label: 'Mô tả hàng hóa', required: true, aliases: ['hang hoa', 'hang', 'goods', 'dien giai', 'mo ta', 'noi dung hang'] },
-        { key: 'qty', label: 'Số lượng', type: 'int', aliases: ['so luong', 'sl', 'qty'] },
-        { key: 'unit', label: 'ĐVT', aliases: ['dvt', 'don vi', 'unit'] },
-        { key: 'weight', label: 'Trọng lượng (kg)', type: 'int', aliases: ['trong luong', 'tl', 'kg', 'weight', 'khoi luong'] },
-        { key: 'price', label: 'Đơn giá', type: 'int', aliases: ['don gia', 'price'] },
-        { key: 'freight', label: 'Cước', type: 'int', required: true, aliases: ['cuoc', 'cuoc van chuyen', 'freight', 'tien cuoc'] },
-        { key: 'cod', label: 'COD / thu hộ', type: 'int', aliases: ['cod', 'thu ho', 'thu tien hang', 'tien thu ho'] },
-        { key: 'transferFee', label: 'Trung chuyển', type: 'int', aliases: ['trung chuyen', 'transfer'] },
-        { key: 'carrier', label: 'Nhà xe / đối tác', aliases: ['nha xe', 'xe', 'doi tac', 'carrier', 'nha van chuyen'] },
-        { key: 'date', label: 'Ngày', aliases: ['ngay', 'date', 'ngay tao', 'ngay gui'] },
-        { key: 'route', label: 'Tuyến', aliases: ['tuyen', 'route'] },
-        { key: 'payBy', label: 'Hình thức TT', aliases: ['hinh thuc thanh toan', 'thanh toan', 'pay'] },
-        { key: 'staff', label: 'NV KD', aliases: ['nv', 'nhan vien', 'staff'] },
+        { key: 'carrier', label: 'Nhà xe', aliases: ['nha xe', 'xe', 'doi tac', 'carrier', 'nha van chuyen'] },
+        { key: 'date', label: 'Ngày gửi', aliases: ['ngay gui', 'ngay', 'date', 'ngay tao'] },
+        { key: 'custName', label: 'Tên khách hàng', required: true, aliases: ['ten khach hang', 'khach hang', 'kh', 'customer', 'nguoi gui', 'ten nguoi gui', 'ten gui'] },
+        { key: 'senderPhone', label: 'SĐT khách', aliases: ['so dien thoai', 'sdt', 'sdt gui', 'sdt khach', 'dien thoai gui', 'phone'] },
+        { key: 'pickup', label: 'Địa chỉ lấy', aliases: ['dia chi lay', 'dia chi gui', 'lay hang', 'diem lay', 'pickup', 'noi gui'] },
+        { key: 'receiverName', label: 'Tên người nhận', aliases: ['ten nguoi nhan', 'nguoi nhan', 'receiver', 'ten nhan'] },
+        { key: 'receiverPhone', label: 'SĐT nhận', aliases: ['so dien thoai', 'sdt nhan', 'sdt nguoi nhan', 'dien thoai nhan'] },
+        { key: 'drop', label: 'Địa chỉ trả', aliases: ['dia chi tra', 'dia chi nhan', 'giao hang', 'diem giao', 'drop', 'noi nhan'] },
+        { key: 'goods', label: 'Mặt hàng', required: true, aliases: ['mat hang', 'hang hoa', 'hang', 'goods', 'dien giai', 'mo ta', 'noi dung hang'] },
+        { key: 'weight', label: 'Số lượng (kg)', type: 'int', aliases: ['so luong', 'sl', 'trong luong', 'tl', 'kg', 'weight', 'khoi luong'] },
+        { key: 'transferIn', label: 'Trung chuyển nhận', type: 'int', aliases: ['trung chuyen nhan hang', 'trung chuyen nhan', 'tc nhan'] },
+        { key: 'transferOut', label: 'Trung chuyển trả', type: 'int', aliases: ['trung chuyen tra hang', 'trung chuyen tra', 'tc tra'] },
+        { key: 'partnerCost', label: 'Giá cước xe (chi nhà xe)', type: 'int', aliases: ['gia cuoc xe', 'cuoc xe', 'chi phi xe', 'gia xe'] },
+        { key: 'freight', label: 'Tổng cước (thu khách)', type: 'int', required: true, aliases: ['tong cuoc', 'cuoc', 'cuoc van chuyen', 'freight', 'tien cuoc'] },
+        { key: 'statusText', label: 'Trạng thái', aliases: ['trang thai', 'tinh trang', 'status'] },
+        { key: 'paidAmount', label: 'Đã thanh toán', type: 'int', aliases: ['da thanh toan', 'da tra', 'da thu'] },
         { key: 'note', label: 'Ghi chú', aliases: ['ghi chu', 'note', 'luu y'] },
+        /* các cột phụ (có thể tự gán nếu mẫu khác) */
+        { key: 'qty', label: 'Số kiện', type: 'int', aliases: ['so kien', 'so luong kien', 'qty'] },
+        { key: 'unit', label: 'ĐVT', aliases: ['dvt', 'don vi', 'unit'] },
+        { key: 'price', label: 'Đơn giá', type: 'int', aliases: ['don gia', 'price'] },
+        { key: 'cod', label: 'COD / thu hộ', type: 'int', aliases: ['cod', 'thu ho', 'thu tien hang', 'tien thu ho'] },
+        { key: 'transferFee', label: 'Trung chuyển (gộp)', type: 'int', aliases: ['trung chuyen', 'transfer'] },
+        { key: 'cargoType', label: 'Loại hàng', aliases: ['loai hang', 'cargo'] },
+        { key: 'route', label: 'Tuyến', aliases: ['tuyen', 'route'] },
+        { key: 'payBy', label: 'Hình thức TT', aliases: ['hinh thuc thanh toan', 'pay'] },
+        { key: 'staff', label: 'NV KD', aliases: ['nv', 'nhan vien', 'staff'] },
       ],
       build(r) {
         const code = window.STORE.nextOrderCode();
@@ -191,6 +198,18 @@
         const matched = custs.find(c => norm(c.name) === norm(r.custName));
         const carrier = (r.carrier || '').trim();
         const external = !!carrier;
+        const partnerCost = nInt(r.partnerCost);
+        const freight = nInt(r.freight);
+        /* 2 cột trung chuyển (nhận + trả) cộng lại; nếu mẫu khác chỉ 1 cột thì lấy transferFee */
+        const transferFee = (nInt(r.transferIn) + nInt(r.transferOut)) || nInt(r.transferFee);
+        /* Trạng thái: đọc chữ tiếng Việt → key (mặc định "Mới") */
+        const st = norm(r.statusText);
+        let status = 'confirmed';
+        if (/huy|cancel/.test(st)) status = 'cancelled';
+        else if (/doi soat/.test(st)) status = 'reconciled';
+        else if (/da giao|giao xong|hoan thanh|xong/.test(st)) status = 'delivered';
+        else if (/dang giao|tren duong|van chuyen|di duong/.test(st)) status = 'transit';
+        else if (/lay hang|dang lay|nhan hang/.test(st)) status = 'pickup';
         return {
           code, date: (r.date || '').trim() || new Date().toLocaleString('vi-VN'),
           cust: matched ? matched.id : null, custName: r.custName,
@@ -200,14 +219,15 @@
           deliveryPlace: '', deliveryDate: '', serviceType: 'lien-tinh', transportMode: 'duong-bo',
           route: r.route || '', cargoType: r.cargoType || '',
           pickup: r.pickup || '—', drop: r.drop || '—',
-          items: [item], goods: `${qty} ${(item.unit || '').toLowerCase()} ${item.desc}`.trim(),
+          items: [item], goods: `${item.desc}${weight ? ' · ' + weight + 'kg' : ''}`.trim() || item.desc,
           qty, weight, unit: item.unit, goodsValue: item.amount,
-          freight: nInt(r.freight), cod: nInt(r.cod), transferFee: nInt(r.transferFee), paidAmount: 0,
+          freight, cod: nInt(r.cod), transferFee, paidAmount: nInt(r.paidAmount),
           payBy: r.payBy || 'Người gửi trả', receiveMethod: '', otherDocs: '', loadOrder: '',
           driver: external ? carrier : '—', driverName: external ? ('🤝 ' + carrier) : '—',
           vehicle: external ? carrier : '—', external,
-          partnerId: null, partnerName: external ? carrier : null, partnerCost: 0, profit: null,
-          priority: false, status: 'confirmed', staff: r.staff || '', note: r.note || '(nhập từ Excel)',
+          partnerId: null, partnerName: external ? carrier : null, partnerCost,
+          profit: external ? (freight - partnerCost) : null,
+          priority: false, status, staff: r.staff || '', note: r.note || '(nhập từ Excel)',
         };
       },
     },
@@ -245,7 +265,9 @@
     const idx = {};
     headerRow.forEach((h, i) => {
       const n = norm(h);
+      if (!n) return;
       for (const col of schema.cols) {
+        if (col.key in idx) continue; /* mỗi trường chỉ gán 1 cột → 2 cột "SĐT" tự vào gửi & nhận */
         const cands = [norm(col.key), norm(col.label), ...(col.aliases || [])];
         if (cands.includes(n)) { idx[col.key] = i; break; }
       }
