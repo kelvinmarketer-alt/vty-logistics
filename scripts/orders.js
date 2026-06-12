@@ -96,6 +96,7 @@
       return;
     }
 
+    const partnersAll = window.STORE.get('partners', window.PARTNERS || []);
     document.getElementById('tbody').innerHTML = rows.map(o => {
       const stOpts = Object.keys(STATUS).map(k =>
         `<option value="${k}"${k===o.status?' selected':''}>${STATUS[k].icon} ${STATUS[k].label}</option>`).join('');
@@ -103,6 +104,9 @@
       const tm = o.transportMode ? TM[o.transportMode] : null;
       const p = payInfo(o);
       const ls = loadState(o);
+      /* Người liên hệ của đối tác (1 đối tác nhiều người LH = nhiều xe) — ưu tiên lưu trên đơn, fallback tra theo partnerId */
+      const pContact = o.external ? (o.partnerContact || (o.partnerId ? ((partnersAll.find(x => x.id === o.partnerId) || {}).contact || '') : '')) : '';
+      const showContact = pContact && pContact.toLowerCase() !== (o.partnerName || '').toLowerCase();
       const payExtra = (p.due > 0 && p.remaining > 0 && p.paid > 0)
           ? `<span style="font-size:12px;color:var(--muted)">Đã thu ${window.fmt(p.paid)} · Còn <b style="color:var(--danger)">${window.fmt(p.remaining)}</b></span>`
         : (p.due > 0 && p.paid === 0)
@@ -122,7 +126,7 @@
           <div>👤 <b>${o.custName || '—'}</b> <span style="color:var(--muted)">${o.cust ? '(' + o.cust + ' · ' + o.staff + ')' : ''}</span></div>
           <div>🚏 ${(o.pickup||'').split(',')[0] || '—'} → ${(o.drop||'').split(',')[0] || '—'}</div>
           <div>📦 ${o.qty || 0} ${(o.unit||'').toLowerCase()}${o.weight ? ' · ' + o.weight + 'kg' : ''}</div>
-          <div>🚚 ${(o.vehicle && o.vehicle !== '—') ? o.vehicle : '<span style="color:var(--muted)">chưa xếp xe</span>'}${(o.driverName && o.driverName !== '—') ? ' · ' + o.driverName : ''}${o.external ? ' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>' : ''}</div>
+          <div>🚚 ${(o.vehicle && o.vehicle !== '—') ? o.vehicle : '<span style="color:var(--muted)">chưa xếp xe</span>'}${(o.driverName && o.driverName !== '—') ? ' · ' + o.driverName : ''}${showContact ? ' · <span style="color:var(--navy);font-weight:600">👤 ' + pContact + '</span>' : ''}${o.external ? ' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>' : ''}</div>
         </div>
         <div class="oc-foot">
           <span><span style="color:var(--muted);font-size:11px">Cước</span> <b>${window.fmt(o.freight)}</b></span>
@@ -544,7 +548,9 @@
     document.getElementById('iPickup').textContent = senderTxt + o.pickup;
     document.getElementById('iDrop').textContent   = recvTxt + o.drop;
     document.getElementById('iNote').textContent   = o.note || '(không có)';
-    document.getElementById('iDriver').innerHTML  = (o.driverName && o.driverName !== '—') ? (o.driverName + (o.external?' <span class="alert-badge warn" style="font-size:10px;margin-left:6px">🤝 Đối tác ngoài</span>':'')) : '<span style="color:var(--muted)">Chưa phân công</span>';
+    const _pContact = o.external ? (o.partnerContact || (o.partnerId ? ((window.STORE.get('partners', []).find(x => x.id === o.partnerId) || {}).contact || '') : '')) : '';
+    const _contactStr = (_pContact && _pContact.toLowerCase() !== (o.partnerName || '').toLowerCase()) ? ' · 👤 ' + _pContact : '';
+    document.getElementById('iDriver').innerHTML  = (o.driverName && o.driverName !== '—') ? (o.driverName + _contactStr + (o.external?' <span class="alert-badge warn" style="font-size:10px;margin-left:6px">🤝 Đối tác ngoài</span>':'')) : '<span style="color:var(--muted)">Chưa phân công</span>';
     document.getElementById('iVehicle').textContent = o.vehicle || '—';
 
     /* ===== Khối Thanh toán (đẹp + trạng thái thu tiền) ===== */
@@ -1068,7 +1074,7 @@
     const carrierMode = document.querySelector('input[name="oCarrier"]:checked')?.value || 'internal';
 
     let driver = '—', driverName = '—', vehicle = '—';
-    let external = false, partnerId = null, partnerName = null, partnerCost = 0;
+    let external = false, partnerId = null, partnerName = null, partnerContact = '', partnerCost = 0;
 
     if (carrierMode === 'internal') {
       const drvId = window.formVal('#oDriver');
@@ -1086,6 +1092,7 @@
       external = true; /* đánh dấu sẽ thuê ngoài (kể cả chưa chọn đối tác) */
       if (p) {
         partnerName = p.name;
+        partnerContact = p.contact || '';
         driverName = '🤝 ' + p.name;
         vehicle = p.vehiclePlate || '(đối tác)';
         driver = p.id;
@@ -1148,7 +1155,7 @@
       loadOrder: window.formVal('#oLoadOrder') || '',
       /* Vận chuyển */
       driver, driverName, vehicle,
-      external, partnerId, partnerName, partnerCost,
+      external, partnerId, partnerName, partnerContact, partnerCost,
       profit: partnerName ? freight - partnerCost : null,
       /* Khác */
       priority: !!document.getElementById('oPriority')?.checked,
