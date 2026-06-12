@@ -1,0 +1,29 @@
+# =========================================================
+# Tự động deploy lên Render mỗi khi push nhánh main.
+# Vì webhook GitHub→Render bị đứt, workflow này tự gọi Deploy Hook thay thế.
+# Cần 1 lần: thêm secret RENDER_DEPLOY_HOOK = URL Deploy Hook của Render
+#   (GitHub repo → Settings → Secrets and variables → Actions → New repository secret)
+# =========================================================
+name: Deploy to Render
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # cho phép bấm chạy tay trong tab Actions
+
+jobs:
+  trigger-render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gọi Render Deploy Hook
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::Chưa cấu hình secret RENDER_DEPLOY_HOOK. Thêm trong Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "Đang kích hoạt deploy trên Render..."
+          curl -fsS "$HOOK"
+          echo ""
+          echo "✓ Đã gửi yêu cầu deploy tới Render."
