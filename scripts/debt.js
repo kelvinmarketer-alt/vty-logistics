@@ -181,6 +181,7 @@
     document.querySelectorAll('#debtTbody tr[data-id]').forEach(tr => {
       tr.onclick = (e) => {
         if (e.target.closest('button')) return;
+        if (tr.dataset.id === '__unknown__') { openUnknownDebt(); return; }
         const debtors = loadDebtors();
         const c = debtors.find(x => x.id === tr.dataset.id);
         if (c) openReminderHistory(c);
@@ -207,6 +208,49 @@
       };
     });
   }
+
+  /* === Popup: danh sách đơn THIẾU SĐT (công nợ chưa xác định) === */
+  function openUnknownDebt() {
+    const orders = window.STORE.get('orders', window.ORDERS || []);
+    const list = orders
+      .filter(o => orderRemaining(o) > 0 && !digits(o.custPhone || o.senderPhone))
+      .sort((a, b) => orderRemaining(b) - orderRemaining(a));
+    const total = list.reduce((s, o) => s + orderRemaining(o), 0);
+    const rows = list.map(o => `
+      <tr style="border-top:1px solid var(--line)">
+        <td style="padding:7px 10px;white-space:nowrap"><b>${o.code}</b></td>
+        <td style="padding:7px 10px">${o.custName ? o.custName : '<span style="color:var(--danger)">(không tên)</span>'}</td>
+        <td style="padding:7px 10px;color:var(--muted);font-size:12px">${(o.pickup || '').split(',')[0] || '—'} → ${(o.drop || '').split(',')[0] || '—'}</td>
+        <td style="padding:7px 10px;text-align:right;white-space:nowrap"><b>${window.fmt(orderRemaining(o))}</b></td>
+        <td style="padding:7px 10px;color:var(--muted);font-size:12px;white-space:nowrap">${(o.date || '').split(' ').slice(-1)[0] || ''}</td>
+        <td style="padding:7px 10px;text-align:center"><button class="btn btn-sm btn-primary" onclick="window.fixOrderPhone('${o.code}')">+ SĐT</button></td>
+      </tr>`).join('');
+    window.openModal('⚠️ Công nợ chưa xác định — ' + list.length + ' đơn thiếu SĐT', `
+      <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Các đơn dưới đây <b>chưa có SĐT khách</b> nên chưa gộp được vào công nợ từng khách. Bấm <b>+ SĐT</b> để bổ sung — đơn sẽ tự nhảy về đúng khách.</div>
+      <div style="overflow:auto;max-height:460px;border:1px solid var(--line);border-radius:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead style="position:sticky;top:0;background:#F3F4F6;color:var(--muted);text-transform:uppercase;font-size:10.5px">
+            <tr><th style="padding:7px 10px;text-align:left">Mã đơn</th><th style="padding:7px 10px;text-align:left">Tên KH</th><th style="padding:7px 10px;text-align:left">Tuyến</th><th style="padding:7px 10px;text-align:right">Còn nợ</th><th style="padding:7px 10px;text-align:left">Ngày</th><th style="padding:7px 10px"></th></tr>
+          </thead>
+          <tbody>${rows || '<tr><td colspan="6" style="padding:30px;text-align:center;color:var(--ok)">✓ Không còn đơn nào thiếu SĐT.</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div style="text-align:right;margin-top:10px;font-size:14px">Tổng chưa xác định: <b style="color:var(--danger)">${window.fmt(total)} ₫</b></div>
+    `, { width: '780px', footer: '<button class="btn btn-primary" onclick="closeModal()">Đóng</button>' });
+  }
+
+  /* Bổ sung SĐT nhanh cho 1 đơn → tự gộp về đúng khách */
+  window.fixOrderPhone = function (code) {
+    const o = window.STORE.get('orders', []).find(x => x.code === code);
+    if (!o) return;
+    const ph = window.prompt('Nhập SĐT khách cho đơn ' + code + (o.custName ? ' (KH: ' + o.custName + ')' : '') + ':', '');
+    if (ph == null) return;
+    if (!digits(ph)) { window.toast('SĐT không hợp lệ', 'warn'); return; }
+    window.STORE.update('orders', code, { custPhone: ph.trim(), senderPhone: o.senderPhone || ph.trim() });
+    window.toast('✓ Đã thêm SĐT cho ' + code, 'success');
+    render();
+    openUnknownDebt(); /* mở lại danh sách đã cập nhật */
+  };
 
   function updateLastContact(custId) {
     window.STORE.update('customers', custId, {
