@@ -47,7 +47,7 @@
       if (!nmRaw) return;
       const nm = stripD(nmRaw);
       const ph = digits(o.custPhone || o.senderPhone) || nameToPhone[nm] || '';
-      const key = ph || nm; /* SĐT là chính */
+      const key = nm + '|' + ph; /* tổ hợp TÊN + SĐT: cùng tên khác SĐT = 2 khách khác nhau */
       if (!agg[key]) agg[key] = { debt: 0, count: 0, custId: o.cust || '', name: nmRaw, phone: ph, oldest: o.date };
       const a = agg[key];
       a.debt += rem; a.count += 1;

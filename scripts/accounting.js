@@ -36,8 +36,36 @@
       <div class="kpi k-5"><div class="kpi-label">TK ngân hàng</div><div class="kpi-value">${window.fmtShort(bank)}</div><div class="kpi-trend">${accounts.filter(a=>a.kind==='bank'&&a.active!==false).length} tài khoản</div><div class="kpi-icon">🏦</div></div>`;
   }
 
+  /* 2 panel Quỹ tiền mặt + Ngân hàng — render từ TK THẬT (không hardcode demo) */
+  function renderPanels() {
+    accounts = window.STORE.get('paymentAccounts', INITIAL_ACCOUNTS);
+    entries = window.STORE.get('cashEntries', INITIAL_ENTRIES);
+    const now = new Date(), mm = now.getMonth(), yy = now.getFullYear();
+    const inMonth = e => { const d = window.parseVNDate && window.parseVNDate(e.date); return d && d.getMonth() === mm && d.getFullYear() === yy; };
+    const cashAccs = accounts.filter(a => a.kind === 'cash' && a.active !== false);
+    const bankAccs = accounts.filter(a => a.kind !== 'cash' && a.active !== false);
+    const cashBal = cashAccs.reduce((s, a) => s + (a.balance || 0), 0);
+    const bankBal = bankAccs.reduce((s, a) => s + (a.balance || 0), 0);
+    const cashNames = new Set(cashAccs.map(a => a.name));
+    const monthE = entries.filter(inMonth);
+    const thuKy = monthE.filter(e => e.type === 'in' && cashNames.has(e.account)).reduce((s, e) => s + (e.amount || 0), 0);
+    const chiKy = monthE.filter(e => e.type === 'out' && cashNames.has(e.account)).reduce((s, e) => s + (e.amount || 0), 0);
+    const accRow = a => `<div class="acc-row"><div class="lab">${a.name}${a.detail ? ' · ' + a.detail : ''}</div><div class="val">${window.fmt(a.balance || 0)} ₫</div></div>`;
+    const cp = document.getElementById('cashPanel');
+    if (cp) cp.innerHTML =
+      (cashAccs.length ? cashAccs.map(accRow).join('') : '<div class="acc-row"><div class="lab" style="color:var(--muted)">Chưa có quỹ tiền mặt</div><div class="val">—</div></div>')
+      + `<div class="acc-row"><div class="lab">Thu trong kỳ</div><div class="val in">+${window.fmt(thuKy)} ₫</div></div>`
+      + `<div class="acc-row"><div class="lab">Chi trong kỳ</div><div class="val out">-${window.fmt(chiKy)} ₫</div></div>`
+      + `<div class="balance"><div class="lab">Số dư tiền mặt</div><div class="val">${window.fmt(cashBal)} ₫</div><div class="sub">${cashAccs.length} quỹ</div></div>`;
+    const bp = document.getElementById('bankPanel');
+    if (bp) bp.innerHTML =
+      (bankAccs.length ? bankAccs.map(accRow).join('') : '<div class="acc-row"><div class="lab" style="color:var(--muted)">Chưa có tài khoản ngân hàng</div><div class="val">—</div></div>')
+      + `<div class="balance" style="background:linear-gradient(135deg,#0EA5E9 0%,#0369A1 100%)"><div class="lab">Tổng dư ngân hàng</div><div class="val">${window.fmt(bankBal)} ₫</div><div class="sub">${bankAccs.length} tài khoản</div></div>`;
+  }
+
   function render() {
     renderKPIs();
+    renderPanels();
     entries = window.STORE.get('cashEntries', INITIAL_ENTRIES);
     const q = document.getElementById('qSearch').value.trim().toLowerCase();
     const t = document.getElementById('fType').value;
@@ -390,7 +418,7 @@
 
   window.STORE.subscribe('cashEntries', render);
   window.STORE.subscribe('orders', render); /* KPI doanh thu/lợi nhuận tính từ đơn → đơn đổi thì cập nhật */
-  window.STORE.subscribe('paymentAccounts', renderKPIs);
+  window.STORE.subscribe('paymentAccounts', render); /* xoá/thêm TK → cập nhật cả KPI lẫn panel */
   window.renderAppShell('accounting', 'Kế toán');
   ['qSearch','fType','fAccount','fFrom','fTo'].forEach(id => document.getElementById(id)?.addEventListener('input', render));
   render();

@@ -793,7 +793,7 @@
       <div class="section-h" style="margin:14px 0 8px">📤 Người gửi <span style="font-weight:400;color:var(--muted);font-size:11.5px">— chính là khách hàng, tự lưu vào danh bạ; trùng tên + SĐT sẽ tính sang đơn kế tiếp</span></div>
       <div class="form-row">
         <div><label>Tên người gửi / khách hàng *</label>${window.custInputHTML('oSenderName', editOrder ? (editOrder.senderName || editOrder.custName || '') : (prefillCust ? prefillCust.name : ''), 'Gõ tên khách / người gửi…')}</div>
-        <div><label>SĐT gửi</label><input id="oSenderPhone" placeholder="09xx xxx xxx"></div>
+        <div><label>SĐT khách / gửi *</label><input id="oSenderPhone" placeholder="09xx xxx xxx (bắt buộc)"></div>
       </div>
       <div class="form-row wide"><label>📍 Địa chỉ gửi (lấy hàng)</label><input id="oPickup" placeholder="Số nhà, đường, quận, tỉnh"></div>
 
@@ -1074,6 +1074,7 @@
       .map(it => ({ desc: (it.desc||'').trim(), unit: it.unit, qty: +it.qty||0, weight: +it.weight||0, price: +it.price||0, amount: (+it.qty||0)*(+it.price||0) }));
 
     if (!custText) { window.toast('Nhập tên khách hàng', 'warn'); return; }
+    if (!window.formVal('#oSenderPhone')) { window.toast('Nhập SĐT khách hàng (bắt buộc để tính công nợ chính xác)', 'warn'); return; }
     if (!items.length) { window.toast('Nhập ít nhất 1 dòng hàng hóa', 'warn'); return; }
     if (!freight) { window.toast('Nhập cước vận chuyển', 'warn'); return; }
 
