@@ -792,8 +792,11 @@ window.upsertCustomerFromOrder = function (o, opts) {
     return c.id;
   }
 
-  /* Tạo KH mới — mã KH tự sinh (KH00x) */
-  const code = window.STORE.nextId('customers', 'KH', 3);
+  /* Tạo KH mới — mã KH tự sinh (KH00x), ĐẢM BẢO không trùng mã đã có (chống 2 khách dính 1 mã) */
+  let code = window.STORE.nextId('customers', 'KH', 3);
+  const usedIds = new Set(customers.map(x => x.id));
+  let _n = parseInt(code.slice(2), 10) || (customers.length + 1);
+  while (usedIds.has(code)) { _n++; code = 'KH' + String(_n).padStart(3, '0'); }
   const newC = {
     id: code, code, name, contact: name,
     type: 'B2C', group: 'Mới',

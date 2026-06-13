@@ -25,7 +25,9 @@
     return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
   }
 
-  /* CÔNG NỢ TÍNH TỪ ĐƠN THẬT: gộp số còn phải thu của mọi đơn theo từng khách hàng. */
+  const stripD = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  /* CÔNG NỢ TÍNH TỪ ĐƠN THẬT: gộp số còn phải thu theo TÊN khách hàng (không gộp theo mã KH
+     vì mã KH có thể bị trùng/lệch — gộp theo tên đảm bảo mỗi khách 1 dòng đúng). */
   function loadDebtors() {
     const customers = window.STORE.get('customers', (window.CUSTOMERS || []).map(c => ({ ...c })));
     const orders = window.STORE.get('orders', window.ORDERS || []);
@@ -33,17 +35,18 @@
     orders.forEach(o => {
       const rem = orderRemaining(o);
       if (rem <= 0) return;
-      const key = o.cust || ('@' + (o.custName || '').trim().toLowerCase());
-      if (!key || key === '@') return;
-      if (!agg[key]) agg[key] = { debt: 0, count: 0, custId: o.cust || '', name: o.custName || '', oldest: o.date };
+      const nm = (o.custName || '').trim();
+      if (!nm) return;
+      const key = stripD(nm);
+      if (!agg[key]) agg[key] = { debt: 0, count: 0, custId: o.cust || '', name: nm, oldest: o.date };
       const a = agg[key];
       a.debt += rem; a.count += 1;
+      if (!a.custId && o.cust) a.custId = o.cust;
       if (daysSince(o.date) > daysSince(a.oldest)) a.oldest = o.date; /* đơn cũ nhất chưa trả → tính quá hạn */
     });
     return Object.keys(agg).map(key => {
       const a = agg[key];
-      const c = a.custId ? customers.find(x => x.id === a.custId)
-        : customers.find(x => (x.name || '').trim().toLowerCase() === (a.name || '').trim().toLowerCase());
+      const c = customers.find(x => stripD(x.name) === key) || (a.custId ? customers.find(x => x.id === a.custId) : null);
       const base = c ? { ...c } : { id: a.custId || key, code: a.custId || '—', name: a.name || '(không tên)', phone: '', contact: a.name };
       const overdue = Math.max(0, daysSince(a.oldest) - 30); /* hạn thanh toán 30 ngày */
       return {
