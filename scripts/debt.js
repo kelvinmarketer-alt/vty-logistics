@@ -13,18 +13,53 @@
     KH009:'10/01/2026', KH010:'15/05/2026',
   };
 
+  /* Số tiền đơn còn phải thu = (cước + trung chuyển + phí giao tận nhà) − đã trả */
+  function orderRemaining(o) {
+    if (!o || o.status === 'cancelled') return 0;
+    const due = (o.freight || 0) + (o.transferFee || 0) + (o.lastMileMode === 'delivery' ? (o.lastMileFee || 0) : 0);
+    return Math.max(0, due - (o.paidAmount || 0));
+  }
+  function daysSince(dateStr) {
+    const d = window.parseVNDate ? window.parseVNDate(dateStr) : null;
+    if (!d) return 0;
+    return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+  }
+
+  /* CÔNG NỢ TÍNH TỪ ĐƠN THẬT: gộp số còn phải thu của mọi đơn theo từng khách hàng. */
   function loadDebtors() {
-    return (window.STORE.get('customers', (window.CUSTOMERS||[]).map(c => ({...c}))))
-      .map(c => ({
-        ...c,
-        staffOwner: c.staffOwner || STAFF_MAP[c.id] || 'Hoàng Mai',
-        lastContact: c.lastContact || LAST_CONTACT_MAP[c.id] || c.lastOrder,
-      }))
-      .filter(c => c.debt > 0);
+    const customers = window.STORE.get('customers', (window.CUSTOMERS || []).map(c => ({ ...c })));
+    const orders = window.STORE.get('orders', window.ORDERS || []);
+    const agg = {};
+    orders.forEach(o => {
+      const rem = orderRemaining(o);
+      if (rem <= 0) return;
+      const key = o.cust || ('@' + (o.custName || '').trim().toLowerCase());
+      if (!key || key === '@') return;
+      if (!agg[key]) agg[key] = { debt: 0, count: 0, custId: o.cust || '', name: o.custName || '', oldest: o.date };
+      const a = agg[key];
+      a.debt += rem; a.count += 1;
+      if (daysSince(o.date) > daysSince(a.oldest)) a.oldest = o.date; /* đơn cũ nhất chưa trả → tính quá hạn */
+    });
+    return Object.keys(agg).map(key => {
+      const a = agg[key];
+      const c = a.custId ? customers.find(x => x.id === a.custId)
+        : customers.find(x => (x.name || '').trim().toLowerCase() === (a.name || '').trim().toLowerCase());
+      const base = c ? { ...c } : { id: a.custId || key, code: a.custId || '—', name: a.name || '(không tên)', phone: '', contact: a.name };
+      const overdue = Math.max(0, daysSince(a.oldest) - 30); /* hạn thanh toán 30 ngày */
+      return {
+        ...base,
+        staffOwner: base.staffOwner || STAFF_MAP[base.id] || 'Hoàng Mai',
+        lastContact: base.lastContact || LAST_CONTACT_MAP[base.id] || a.oldest || '—',
+        debt: a.debt,
+        debtOverdue: overdue > 0 ? a.debt : 0,
+        _overdue: overdue,
+        _orderCount: a.count,
+      };
+    }).filter(c => c.debt > 0);
   }
 
   function overdueDays(c) {
-    return window.overdueDays(c);
+    return (c && c._overdue != null) ? c._overdue : window.overdueDays(c);
   }
 
   function renderAgingKPIs() {
@@ -113,7 +148,7 @@
         <td class="num"><b>${window.fmt(c.debt)}</b></td>
         <td class="num debt-cell ${ovCls}">${c.debtOverdue ? window.fmt(c.debtOverdue) : '—'}</td>
         <td><span class="status-pill" style="background:${ovBg};color:${ovFg}">${ovLab}</span></td>
-        <td style="font-size:12px;color:var(--muted)">${Math.max(1, Math.ceil(c.debt / 10_000_000))} HĐ</td>
+        <td style="font-size:12px;color:var(--muted)">${c._orderCount || 1} đơn</td>
         <td style="font-size:12px;color:var(--muted)">${c.lastContact || '—'}</td>
         <td>
           <div class="row-actions">
@@ -772,6 +807,7 @@ Mong quý khách thu xếp thanh toán sớm. Cảm ơn!
   };
 
   window.STORE.subscribe('customers', render);
+  window.STORE.subscribe('orders', render); /* công nợ tính từ đơn → đơn đổi thì cập nhật */
   window.renderAppShell('debt', 'Công nợ');
   ['qSearch', 'fBucket'].forEach(id => document.getElementById(id)?.addEventListener('input', render));
   render();

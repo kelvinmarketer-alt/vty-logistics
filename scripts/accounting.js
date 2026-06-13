@@ -15,19 +15,23 @@
     entries = window.STORE.get('cashEntries', INITIAL_ENTRIES);
     accounts = window.STORE.get('paymentAccounts', INITIAL_ACCOUNTS);
     const now = new Date(), mm = now.getMonth(), yy = now.getFullYear();
-    const inMonth = e => { const d = window.parseVNDate && window.parseVNDate(e.date); return d && d.getMonth() === mm && d.getFullYear() === yy; };
-    const monthE = entries.filter(inMonth);
-    const thu = monthE.filter(e => e.type === 'in').reduce((s, e) => s + (e.amount || 0), 0);
-    const chi = monthE.filter(e => e.type === 'out').reduce((s, e) => s + (e.amount || 0), 0);
-    const loi = thu - chi;
-    const bien = thu ? Math.round(loi / thu * 1000) / 10 : 0;
+    /* Tính từ ĐƠN HÀNG thật trong tháng (không phụ thuộc phiếu thu/chi thủ công) */
+    const orders = window.STORE.get('orders', window.ORDERS || []);
+    const inMonthO = o => { const d = window.parseVNDate && window.parseVNDate(o.date); return d && d.getMonth() === mm && d.getFullYear() === yy; };
+    const monthO = orders.filter(o => o.status !== 'cancelled' && inMonthO(o));
+    const doanhThu = monthO.reduce((s, o) => s + (o.freight || 0) + (o.transferFee || 0), 0); /* cước phải thu */
+    const thu = monthO.reduce((s, o) => s + (o.paidAmount || 0), 0);                          /* đã thu thực tế */
+    const conThu = Math.max(0, doanhThu - thu);
+    const chi = monthO.reduce((s, o) => s + (o.external ? (o.partnerCost || 0) : 0), 0);       /* chi trả đối tác */
+    const loi = doanhThu - chi;
+    const bien = doanhThu ? Math.round(loi / doanhThu * 1000) / 10 : 0;
     const cash = accounts.filter(a => a.kind === 'cash' && a.active !== false).reduce((s, a) => s + (a.balance || 0), 0);
     const bank = accounts.filter(a => a.kind === 'bank' && a.active !== false).reduce((s, a) => s + (a.balance || 0), 0);
     const M = mm + 1;
     el.innerHTML = `
-      <div class="kpi k-1"><div class="kpi-label">Tổng thu T${M}</div><div class="kpi-value">${window.fmtShort(thu)}</div><div class="kpi-trend up">${monthE.filter(e=>e.type==='in').length} phiếu thu</div><div class="kpi-icon">📈</div></div>
-      <div class="kpi k-3"><div class="kpi-label">Tổng chi T${M}</div><div class="kpi-value">${window.fmtShort(chi)}</div><div class="kpi-trend">${monthE.filter(e=>e.type==='out').length} phiếu chi</div><div class="kpi-icon">📉</div></div>
-      <div class="kpi k-2"><div class="kpi-label">Lợi nhuận gộp T${M}</div><div class="kpi-value">${window.fmtShort(loi)}</div><div class="kpi-trend ${loi>=0?'up':'down'}">Biên ${bien}%</div><div class="kpi-icon">💰</div></div>
+      <div class="kpi k-1"><div class="kpi-label">Đã thu T${M}</div><div class="kpi-value">${window.fmtShort(thu)}</div><div class="kpi-trend up">${monthO.length} đơn · còn thu ${window.fmtShort(conThu)}</div><div class="kpi-icon">📈</div></div>
+      <div class="kpi k-3"><div class="kpi-label">Chi đối tác T${M}</div><div class="kpi-value">${window.fmtShort(chi)}</div><div class="kpi-trend">${monthO.filter(o=>o.external).length} đơn thuê ngoài</div><div class="kpi-icon">📉</div></div>
+      <div class="kpi k-2"><div class="kpi-label">Lợi nhuận gộp T${M}</div><div class="kpi-value">${window.fmtShort(loi)}</div><div class="kpi-trend ${loi>=0?'up':'down'}">DT ${window.fmtShort(doanhThu)} · Biên ${bien}%</div><div class="kpi-icon">💰</div></div>
       <div class="kpi k-4"><div class="kpi-label">Quỹ tiền mặt</div><div class="kpi-value">${window.fmtShort(cash)}</div><div class="kpi-trend">Tại văn phòng</div><div class="kpi-icon">💵</div></div>
       <div class="kpi k-5"><div class="kpi-label">TK ngân hàng</div><div class="kpi-value">${window.fmtShort(bank)}</div><div class="kpi-trend">${accounts.filter(a=>a.kind==='bank'&&a.active!==false).length} tài khoản</div><div class="kpi-icon">🏦</div></div>`;
   }
@@ -385,6 +389,7 @@
   };
 
   window.STORE.subscribe('cashEntries', render);
+  window.STORE.subscribe('orders', render); /* KPI doanh thu/lợi nhuận tính từ đơn → đơn đổi thì cập nhật */
   window.STORE.subscribe('paymentAccounts', renderKPIs);
   window.renderAppShell('accounting', 'Kế toán');
   ['qSearch','fType','fAccount','fFrom','fTo'].forEach(id => document.getElementById(id)?.addEventListener('input', render));
