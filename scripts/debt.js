@@ -26,28 +26,43 @@
   }
 
   const stripD = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-  /* CÔNG NỢ TÍNH TỪ ĐƠN THẬT: gộp số còn phải thu theo TÊN khách hàng (không gộp theo mã KH
-     vì mã KH có thể bị trùng/lệch — gộp theo tên đảm bảo mỗi khách 1 dòng đúng). */
+  const digits = s => String(s || '').replace(/\D/g, '');
+  /* CÔNG NỢ TÍNH TỪ ĐƠN THẬT, gộp theo DANH TÍNH KHÁCH:
+     - Khóa chính = SĐT (khó trùng nhất). Đơn KHÔNG có SĐT → mượn SĐT của khách CÙNG TÊN.
+     - Không có SĐT lẫn tên trùng → gộp theo tên. → mỗi khách 1 dòng đúng, không lẫn mã KH. */
   function loadDebtors() {
     const customers = window.STORE.get('customers', (window.CUSTOMERS || []).map(c => ({ ...c })));
     const orders = window.STORE.get('orders', window.ORDERS || []);
+    /* Lớp 1: tên → SĐT đại diện (để đơn thiếu SĐT vẫn gộp đúng khách) */
+    const nameToPhone = {};
+    orders.forEach(o => {
+      const nm = stripD(o.custName || ''); const ph = digits(o.custPhone || o.senderPhone);
+      if (nm && ph && !nameToPhone[nm]) nameToPhone[nm] = ph;
+    });
     const agg = {};
     orders.forEach(o => {
       const rem = orderRemaining(o);
       if (rem <= 0) return;
-      const nm = (o.custName || '').trim();
-      if (!nm) return;
-      const key = stripD(nm);
-      if (!agg[key]) agg[key] = { debt: 0, count: 0, custId: o.cust || '', name: nm, oldest: o.date };
+      const nmRaw = (o.custName || '').trim();
+      if (!nmRaw) return;
+      const nm = stripD(nmRaw);
+      const ph = digits(o.custPhone || o.senderPhone) || nameToPhone[nm] || '';
+      const key = ph || nm; /* SĐT là chính */
+      if (!agg[key]) agg[key] = { debt: 0, count: 0, custId: o.cust || '', name: nmRaw, phone: ph, oldest: o.date };
       const a = agg[key];
       a.debt += rem; a.count += 1;
+      if (ph && !a.phone) a.phone = ph;
       if (!a.custId && o.cust) a.custId = o.cust;
-      if (daysSince(o.date) > daysSince(a.oldest)) a.oldest = o.date; /* đơn cũ nhất chưa trả → tính quá hạn */
+      if (daysSince(o.date) > daysSince(a.oldest)) a.oldest = o.date;
     });
     return Object.keys(agg).map(key => {
       const a = agg[key];
-      const c = customers.find(x => stripD(x.name) === key) || (a.custId ? customers.find(x => x.id === a.custId) : null);
-      const base = c ? { ...c } : { id: a.custId || key, code: a.custId || '—', name: a.name || '(không tên)', phone: '', contact: a.name };
+      /* Khớp hồ sơ KH: ưu tiên theo SĐT, rồi tên, rồi mã */
+      const c = (a.phone && customers.find(x => digits(x.phone) === a.phone))
+        || customers.find(x => stripD(x.name) === stripD(a.name))
+        || (a.custId ? customers.find(x => x.id === a.custId) : null);
+      const base = c ? { ...c } : { id: a.custId || key, code: a.custId || '—', name: a.name || '(không tên)', phone: a.phone, contact: a.name };
+      if (!digits(base.phone) && a.phone) base.phone = a.phone;
       const overdue = Math.max(0, daysSince(a.oldest) - 30); /* hạn thanh toán 30 ngày */
       return {
         ...base,
