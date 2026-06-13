@@ -149,6 +149,15 @@
       }
       if (changed) return true;
     }
+    /* Thiếu cột NOT NULL (23502): đặt giá trị mặc định an toàn (số→0, còn lại→'') rồi thử lại
+       → insert KHÔNG bao giờ bị từ chối vì thiếu trường (chống mất đơn). */
+    if (error && error.code === '23502') {
+      const col = (msg.match(/column "([^"]+)"/) || [])[1];
+      if (col) {
+        mapped[col] = /amount|freight|net|vat|cost|fee|qty|weight|paid|value|price|profit|cod|trips|spent|capacity|rating|revenue|debt|orders/i.test(col) ? 0 : '';
+        return true;
+      }
+    }
     /* Vi phạm khóa ngoại (23503): KH/tài xế/đối tác chưa kịp có trên server (đẩy bất đồng bộ)
        hoặc giá trị rỗng "—"/"". → null cột FK đó rồi thử lại; giá trị gốc vẫn nằm trong cột
        'doc' nên khi tải lại app vẫn khôi phục đúng liên kết. */

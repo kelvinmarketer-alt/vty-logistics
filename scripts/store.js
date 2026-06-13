@@ -33,6 +33,26 @@
   const _subs = {};
   const _preloaded = new Set();
   const _realtimeOn = new Set();
+  /* Hàng chờ đồng bộ: item đã tạo local nhưng CHƯA xác nhận lên cloud.
+     Dùng để (1) KHÔNG bị xoá khi refresh "tin server"; (2) tự đẩy lại → không mất dữ liệu. */
+  const _pending = {};
+  const _pkey = it => it && (it.id || it.code || it.no);
+  function _markPending(key, item) { (_pending[key] = _pending[key] || {})[_pkey(item)] = item; }
+  function _unmarkPending(key, id) { if (_pending[key]) delete _pending[key][id]; }
+  /* Gộp dữ liệu server với các item còn treo (chưa lên cloud) → không mất, không nhân đôi */
+  function _mergePending(key, serverArr) {
+    const pend = _pending[key] ? Object.values(_pending[key]) : [];
+    if (!pend.length) return serverArr;
+    const sKeys = new Set(serverArr.map(_pkey));
+    pend.forEach(it => { if (sKeys.has(_pkey(it))) _unmarkPending(key, _pkey(it)); }); /* đã lên server → bỏ treo */
+    const keep = pend.filter(it => !sKeys.has(_pkey(it)));
+    /* thử đẩy lại item còn treo (tự lành lỗi tạm thời như mạng/khoá ngoại) */
+    keep.forEach(it => {
+      if (window.SB_DATA?.insert) window.SB_DATA.insert(TABLE_MAP[key], it)
+        .then(res => { if (res) _unmarkPending(key, _pkey(it)); }).catch(() => {});
+    });
+    return [...keep, ...serverArr];
+  }
 
   /* Mapping STORE key → Supabase table name */
   const TABLE_MAP = {
@@ -83,10 +103,10 @@
     _preloaded.add(key);
     try {
       const data = await window.SB_DATA.getAll(table);
-      /* Chỉ replace nếu Supabase có nhiều data hơn (tránh xoá local khi DB trống) */
+      /* Chỉ replace nếu Supabase có data (tránh xoá local khi DB trống). Gộp item còn treo để không mất. */
       if (Array.isArray(data) && data.length > 0) {
-        _data[key] = data;
-        try { localStorage.setItem(PREFIX + key, JSON.stringify(data)); } catch (e) {}
+        _data[key] = _mergePending(key, data);
+        try { localStorage.setItem(PREFIX + key, JSON.stringify(_data[key])); } catch (e) {}
         (_subs[key] || []).forEach(fn => fn(_data[key]));
         console.log(`[STORE] Synced ${key}: ${data.length} records từ Supabase`);
       }
@@ -103,8 +123,8 @@
     if (!table) return;
     window.SB_DATA.getAll(table).then(data => {
       if (!Array.isArray(data)) return;
-      _data[key] = data;
-      try { localStorage.setItem(PREFIX + key, JSON.stringify(data)); } catch (e) {}
+      _data[key] = _mergePending(key, data); /* giữ lại item local chưa kịp lên cloud */
+      try { localStorage.setItem(PREFIX + key, JSON.stringify(_data[key])); } catch (e) {}
       (_subs[key] || []).forEach(fn => fn(_data[key]));
     }).catch(e => console.warn(`[STORE realtime refresh ${key}]`, e.message));
   }
@@ -152,19 +172,21 @@
       const arr = this.get(key, fallback);
       arr.unshift(item);
       _save(key);
-      /* Push to Supabase — báo rõ nếu KHÔNG đồng bộ được (insert lỗi → trả null) */
+      /* Push to Supabase — GIỮ TREO tới khi xác nhận lên cloud (chống mất dữ liệu). */
       if (isSupabaseMode() && TABLE_MAP[key]) {
+        _markPending(key, item);
         window.SB_DATA.insert(TABLE_MAP[key], item)
           .then(res => {
-            if (!res) {
+            if (res) { _unmarkPending(key, _pkey(item)); }
+            else {
               const e = window.__sbLastError;
               const detail = e ? ` — LỖI [${e.code || '?'}] ${e.message || e}` : '';
-              window.toast?.('⚠ CHƯA lưu server (' + key + ')' + detail, 'danger');
+              window.toast?.('⚠ CHƯA lưu server (' + key + ') — giữ local & tự thử lại' + detail, 'danger');
             }
           })
           .catch(e => {
             console.warn(`[STORE add ${key} → SB]`, e);
-            window.toast?.('⚠ Lỗi đồng bộ ' + key + ' lên server', 'danger');
+            window.toast?.('⚠ Lỗi đồng bộ ' + key + ' — giữ local & tự thử lại', 'danger');
           });
       }
       return item;
@@ -194,6 +216,7 @@
       const arr = this.get(key, fallback);
       const item = arr.find(x => x.id === identifier || x.code === identifier || x.no === identifier);
       _data[key] = arr.filter(x => x.id !== identifier && x.code !== identifier && x.no !== identifier);
+      _unmarkPending(key, identifier); /* đã xoá → không giữ treo / không hồi lại */
       _save(key);
       /* Push to Supabase — chọn cột định danh KHỚP với identifier (xem ghi chú ở update) */
       if (isSupabaseMode() && TABLE_MAP[key] && item) {
