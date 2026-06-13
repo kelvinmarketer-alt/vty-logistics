@@ -27,36 +27,35 @@
 
   const stripD = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
   const digits = s => String(s || '').replace(/\D/g, '');
-  /* CÔNG NỢ TÍNH TỪ ĐƠN THẬT, gộp theo DANH TÍNH KHÁCH:
-     - Khóa chính = SĐT (khó trùng nhất). Đơn KHÔNG có SĐT → mượn SĐT của khách CÙNG TÊN.
-     - Không có SĐT lẫn tên trùng → gộp theo tên. → mỗi khách 1 dòng đúng, không lẫn mã KH. */
+  /* CÔNG NỢ TÍNH TỪ ĐƠN THẬT — khớp theo SĐT TRƯỚC (chính xác nhất):
+     - Đơn CÓ SĐT → gộp theo SĐT (cùng SĐT = cùng khách, dù tên gõ khác nhau).
+     - Đơn KHÔNG có SĐT (kể cả có tên) → dồn vào "⚠️ Công nợ chưa xác định" (không gộp bừa theo tên). */
   function loadDebtors() {
     const customers = window.STORE.get('customers', (window.CUSTOMERS || []).map(c => ({ ...c })));
     const orders = window.STORE.get('orders', window.ORDERS || []);
-    /* Lớp 1: tên → SĐT đại diện (để đơn thiếu SĐT vẫn gộp đúng khách) */
-    const nameToPhone = {};
-    orders.forEach(o => {
-      const nm = stripD(o.custName || ''); const ph = digits(o.custPhone || o.senderPhone);
-      if (nm && ph && !nameToPhone[nm]) nameToPhone[nm] = ph;
-    });
     const agg = {};
     orders.forEach(o => {
       const rem = orderRemaining(o);
       if (rem <= 0) return;
       const nmRaw = (o.custName || '').trim();
-      if (!nmRaw) return;
-      const nm = stripD(nmRaw);
-      const ph = digits(o.custPhone || o.senderPhone) || nameToPhone[nm] || '';
-      const key = nm + '|' + ph; /* tổ hợp TÊN + SĐT: cùng tên khác SĐT = 2 khách khác nhau */
-      if (!agg[key]) agg[key] = { debt: 0, count: 0, custId: o.cust || '', name: nmRaw, phone: ph, oldest: o.date };
+      const ph = digits(o.custPhone || o.senderPhone);
+      const unknown = !ph; /* không có SĐT → không xác định được khách */
+      const key = unknown ? '__unknown__' : ph;
+      const displayName = unknown ? '⚠️ Công nợ chưa xác định' : (nmRaw || ('KH ' + ph));
+      if (!agg[key]) agg[key] = { debt: 0, count: 0, custId: o.cust || '', name: displayName, phone: unknown ? '' : ph, oldest: o.date, unknown };
       const a = agg[key];
       a.debt += rem; a.count += 1;
-      if (ph && !a.phone) a.phone = ph;
+      if (!unknown && nmRaw && (!a.name || a.name.startsWith('KH '))) a.name = nmRaw; /* ưu tiên tên thật cho dòng theo SĐT */
       if (!a.custId && o.cust) a.custId = o.cust;
       if (daysSince(o.date) > daysSince(a.oldest)) a.oldest = o.date;
     });
     return Object.keys(agg).map(key => {
       const a = agg[key];
+      if (a.unknown) {
+        const overdue = Math.max(0, daysSince(a.oldest) - 30);
+        return { id: '__unknown__', code: '⚠️ Chưa rõ', name: a.name, phone: '—', contact: '', staffOwner: '—',
+          lastContact: a.oldest || '—', debt: a.debt, debtOverdue: 0, _overdue: 0, _orderCount: a.count, _unknown: true };
+      }
       /* Khớp hồ sơ KH: ưu tiên theo SĐT, rồi tên, rồi mã */
       const c = (a.phone && customers.find(x => digits(x.phone) === a.phone))
         || customers.find(x => stripD(x.name) === stripD(a.name))
