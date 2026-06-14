@@ -15,7 +15,7 @@
 (function () {
   const FLAG = 'vty_demo_purged_v1';
   /* GIỮ lại: cờ purge + phiên đăng nhập hiện tại (tránh đăng xuất ngoài ý muốn) */
-  const KEEP = new Set([FLAG, 'vty_currentUser']);
+  const KEEP = new Set([FLAG, 'vty_currentUser', 'vty__pending']);
   try {
     if (!localStorage.getItem(FLAG)) {
       Object.keys(localStorage)
@@ -35,23 +35,42 @@
   const _realtimeOn = new Set();
   /* Hàng chờ đồng bộ: item đã tạo local nhưng CHƯA xác nhận lên cloud.
      Dùng để (1) KHÔNG bị xoá khi refresh "tin server"; (2) tự đẩy lại → không mất dữ liệu. */
-  const _pending = {};
+  const _pending = {}; /* key → { pkey → {item, op:'insert'|'update', idCol, identifier} } */
+  const PEND_KEY = PREFIX + '_pending';
+  /* Persist hàng chờ qua localStorage → reload ngay sau khi thêm/sửa (chưa kịp sync) KHÔNG mất */
+  try { const r = localStorage.getItem(PEND_KEY); if (r) Object.assign(_pending, JSON.parse(r)); } catch (e) {}
+  function _savePending() { try { localStorage.setItem(PEND_KEY, JSON.stringify(_pending)); } catch (e) {} }
   const _pkey = it => it && (it.id || it.code || it.no);
-  function _markPending(key, item) { (_pending[key] = _pending[key] || {})[_pkey(item)] = item; }
-  function _unmarkPending(key, id) { if (_pending[key]) delete _pending[key][id]; }
-  /* Gộp dữ liệu server với các item còn treo (chưa lên cloud) → không mất, không nhân đôi */
-  function _mergePending(key, serverArr) {
-    const pend = _pending[key] ? Object.values(_pending[key]) : [];
-    if (!pend.length) return serverArr;
-    const sKeys = new Set(serverArr.map(_pkey));
-    pend.forEach(it => { if (sKeys.has(_pkey(it))) _unmarkPending(key, _pkey(it)); }); /* đã lên server → bỏ treo */
-    const keep = pend.filter(it => !sKeys.has(_pkey(it)));
-    /* thử đẩy lại item còn treo (tự lành lỗi tạm thời như mạng/khoá ngoại) */
-    keep.forEach(it => {
-      if (window.SB_DATA?.insert) window.SB_DATA.insert(TABLE_MAP[key], it)
-        .then(res => { if (res) _unmarkPending(key, _pkey(it)); }).catch(() => {});
+  function _markPending(key, item, op, idCol, identifier) {
+    (_pending[key] = _pending[key] || {})[_pkey(item)] = {
+      item, op: op || 'insert', idCol: idCol || 'id', identifier: identifier != null ? identifier : _pkey(item),
+    };
+    _savePending();
+  }
+  function _unmarkPending(key, id) { if (_pending[key]) { delete _pending[key][id]; _savePending(); } }
+  /* Đẩy lại item còn treo (tự lành lỗi tạm thời: mạng / khóa ngoại). insert hay update tùy op. */
+  function _retryPending(key) {
+    const p = _pending[key]; if (!p || !window.SB_DATA) return;
+    const table = TABLE_MAP[key]; if (!table) return;
+    Object.values(p).forEach(e => {
+      const ok = res => { if (res) _unmarkPending(key, _pkey(e.item)); };
+      if (e.op === 'update') window.SB_DATA.update(table, e.identifier, e.item, e.idCol, e.item).then(ok).catch(() => {});
+      else window.SB_DATA.insert(table, e.item).then(ok).catch(() => {});
     });
-    return [...keep, ...serverArr];
+  }
+  /* Gộp server + item ĐANG TREO (chưa xác nhận lên cloud):
+     - item treo GHI ĐÈ bản server (là thay đổi mới của mình chưa kịp sync) → KHÔNG mất khi refresh;
+     - item treo dạng INSERT chưa có trên server → thêm vào.
+     Chỉ bỏ treo khi callback insert/update xác nhận OK (không bỏ ở đây). */
+  function _mergePending(key, serverArr) {
+    const p = _pending[key]; const pend = p ? Object.values(p) : [];
+    if (!pend.length) return serverArr;
+    const pmap = {}; pend.forEach(e => { pmap[_pkey(e.item)] = e.item; });
+    const sKeys = new Set(serverArr.map(_pkey));
+    const merged = serverArr.map(s => pmap[_pkey(s)] || s);
+    const extra = pend.filter(e => e.op === 'insert' && !sKeys.has(_pkey(e.item))).map(e => e.item);
+    _retryPending(key);
+    return [...extra, ...merged];
   }
 
   /* Mapping STORE key → Supabase table name */
@@ -203,7 +222,10 @@
            (vd đối tác: truyền id 'Pxxx' nhưng có cả code 'DT0xx' → phải dùng cột 'id') */
         if (isSupabaseMode() && TABLE_MAP[key]) {
           const idCol = ID_COLUMN[key] || (arr[i].id === identifier ? 'id' : arr[i].code === identifier ? 'code' : arr[i].no === identifier ? 'no' : 'id');
+          /* GIỮ TREO bản sửa tới khi xác nhận lên cloud → refresh không bị bản server cũ ghi đè mất */
+          _markPending(key, arr[i], 'update', idCol, identifier);
           window.SB_DATA.update(TABLE_MAP[key], identifier, patch, idCol, arr[i])
+            .then(res => { if (res) _unmarkPending(key, _pkey(arr[i])); })
             .catch(e => console.warn(`[STORE update ${key} → SB]`, e));
         }
         return arr[i];
