@@ -33,11 +33,12 @@
   function loadDebtors() {
     const customers = window.STORE.get('customers', (window.CUSTOMERS || []).map(c => ({ ...c })));
     const orders = window.STORE.get('orders', window.ORDERS || []);
+    const idOf = window.buildOrderIdentity(orders);
     const agg = {};
     orders.forEach(o => {
       const rem = orderRemaining(o);
       if (rem <= 0) return;
-      const key = window.orderIdentity(o);
+      const key = idOf(o);
       const unknown = key === '__unknown__';
       const ph = window.validPhone(o.custPhone || o.senderPhone);
       const nmRaw = (o.custName || '').trim();
@@ -54,7 +55,7 @@
       const a = agg[key];
       if (a.unknown) {
         const overdue = Math.max(0, daysSince(a.oldest) - 30);
-        return { id: '__unknown__', code: '⚠️ Chưa rõ', name: a.name, phone: '—', contact: '', staffOwner: '—',
+        return { id: '__unknown__', _idkey: key, code: '⚠️ Chưa rõ', name: a.name, phone: '—', contact: '', staffOwner: '—',
           lastContact: a.oldest || '—', debt: a.debt, debtOverdue: 0, _overdue: 0, _orderCount: a.count, _unknown: true };
       }
       /* Khớp hồ sơ KH: theo SĐT hợp lệ, rồi tên, rồi mã */
@@ -66,6 +67,7 @@
       const overdue = Math.max(0, daysSince(a.oldest) - 30); /* hạn thanh toán 30 ngày */
       return {
         ...base,
+        _idkey: key,
         staffOwner: base.staffOwner || STAFF_MAP[base.id] || 'Hoàng Mai',
         lastContact: base.lastContact || LAST_CONTACT_MAP[base.id] || a.oldest || '—',
         debt: a.debt,
@@ -146,19 +148,22 @@
         return true;
       });
 
+    const lc = document.getElementById('debtListCount');
+    if (lc) lc.textContent = `${rows.length} khách đang nợ · sắp xếp theo độ rủi ro giảm dần`;
     document.getElementById('debtTbody').innerHTML = rows.map(c => {
       const col = window.avatarColor(c.id);
       const ovCls = c.overdue > 60 ? 'danger' : c.overdue > 30 ? 'warn' : 'ok';
       const ovLab = c.overdue === 0 ? '✓ Trong hạn' : c.overdue + ' ngày quá hạn';
       const ovBg = c.overdue > 60 ? 'var(--danger-bg)' : c.overdue > 30 ? 'var(--warn-bg)' : 'var(--ok-bg)';
       const ovFg = c.overdue > 60 ? 'var(--danger)' : c.overdue > 30 ? 'var(--warn)' : 'var(--ok)';
-      return `<tr data-id="${c.id}" style="cursor:pointer" title="Bấm để xem chi tiết công nợ">
+      const rid = String(c._idkey || c.id).replace(/"/g, '&quot;');
+      return `<tr data-id="${rid}" style="cursor:pointer" title="Bấm để xem danh sách đơn còn nợ">
         <td>
           <div class="cust-cell">
             <div class="cust-ava" style="background:${col}">${window.initials(c.name)}</div>
             <div class="cust-info">
               <div class="n1">${c.name}</div>
-              <div class="n2">${c.code} · ${c.phone}</div>
+              <div class="n2">${c.code}${c.phone && c.phone !== '—' ? ' · ' + c.phone : ''}</div>
             </div>
           </div>
         </td>
@@ -170,10 +175,10 @@
         <td style="font-size:12px;color:var(--muted)">${c.lastContact || '—'}</td>
         <td>
           <div class="row-actions">
-            <button class="ra-call" title="Gọi nhắc nợ" data-action="call" data-id="${c.id}">📞</button>
-            <button class="ra-zalo" title="Nhắc Zalo" data-action="zalo" data-id="${c.id}">Z</button>
-            <button title="Phiếu thu nợ" data-action="receipt" data-id="${c.id}">💵</button>
-            <button title="Lịch sử nhắc" data-action="history" data-id="${c.id}">📋</button>
+            <button class="ra-call" title="Gọi nhắc nợ" data-action="call" data-id="${rid}">📞</button>
+            <button class="ra-zalo" title="Nhắc Zalo" data-action="zalo" data-id="${rid}">Z</button>
+            <button title="Phiếu thu nợ" data-action="receipt" data-id="${rid}">💵</button>
+            <button title="Danh sách đơn nợ" data-action="orders" data-id="${rid}">📋</button>
           </div>
         </td>
       </tr>`;
@@ -183,16 +188,15 @@
       tr.onclick = (e) => {
         if (e.target.closest('button')) return;
         if (tr.dataset.id === '__unknown__') { openUnknownDebt(); return; }
-        const debtors = loadDebtors();
-        const c = debtors.find(x => x.id === tr.dataset.id);
-        if (c) openReminderHistory(c);
+        const c = loadDebtors().find(x => String(x._idkey || x.id) === tr.dataset.id);
+        if (c) openDebtorOrders(c);
       };
     });
     document.querySelectorAll('#debtTbody button[data-action]').forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation();
         const debtors = loadDebtors();
-        const c = debtors.find(x => x.id === btn.dataset.id);
+        const c = debtors.find(x => String(x._idkey || x.id) === btn.dataset.id);
         if (!c) return;
         switch (btn.dataset.action) {
           case 'call':
@@ -204,17 +208,67 @@
             openReminderTicket(c, 'zalo');
             break;
           case 'receipt': openReceipt(c); break;
-          case 'history': openReminderHistory(c); break;
+          case 'orders': openDebtorOrders(c); break;
         }
       };
     });
   }
 
+  /* === Popup: danh sách đơn còn nợ của 1 KHÁCH === */
+  function openDebtorOrders(debtor) {
+    if (debtor._unknown) { openUnknownDebt(); return; }
+    const orders = window.STORE.get('orders', window.ORDERS || []);
+    const idOf = window.buildOrderIdentity(orders);
+    const key = debtor._idkey;
+    const all = orders.filter(o => o.status !== 'cancelled' && idOf(o) === key)
+      .sort((a, b) => orderRemaining(b) - orderRemaining(a));
+    const unpaid = all.filter(o => orderRemaining(o) > 0);
+    const total = unpaid.reduce((s, o) => s + orderRemaining(o), 0);
+    const rows = all.map(o => {
+      const rem = orderRemaining(o); const paid = rem <= 0;
+      return `<tr style="border-top:1px solid var(--line)">
+        <td style="padding:7px 10px;white-space:nowrap"><b>${o.code}</b></td>
+        <td style="padding:7px 10px;color:var(--muted);font-size:12px">${(o.pickup || '').split(',')[0] || '—'} → ${(o.drop || '').split(',')[0] || '—'}</td>
+        <td style="padding:7px 10px;text-align:right;white-space:nowrap">${window.fmt((o.freight || 0) + (o.transferFee || 0))}</td>
+        <td style="padding:7px 10px;text-align:right;white-space:nowrap;color:var(--muted)">${window.fmt(o.paidAmount || 0)}</td>
+        <td style="padding:7px 10px;text-align:right;white-space:nowrap"><b style="color:${paid ? 'var(--ok)' : 'var(--danger)'}">${paid ? '✓' : window.fmt(rem)}</b></td>
+        <td style="padding:7px 10px;color:var(--muted);font-size:12px;white-space:nowrap">${(o.date || '').split(' ').slice(-1)[0] || ''}</td>
+        <td style="padding:7px 10px;text-align:center">${paid ? '' : `<button class="btn btn-sm btn-primary" onclick="window.collectDebtOrder('${o.code}')">✓ Thu</button>`}</td>
+      </tr>`;
+    }).join('');
+    window.openModal('📋 Công nợ — ' + debtor.name + (debtor.phone && debtor.phone !== '—' ? ' · ' + debtor.phone : ''), `
+      <div style="font-size:13px;color:var(--muted);margin-bottom:10px"><b>${unpaid.length}</b> đơn còn nợ / ${all.length} đơn. Bấm <b>✓ Thu</b> để đánh dấu đã thu đủ đơn đó.</div>
+      <div style="overflow:auto;max-height:460px;border:1px solid var(--line);border-radius:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead style="position:sticky;top:0;background:#F3F4F6;color:var(--muted);text-transform:uppercase;font-size:10.5px">
+            <tr><th style="padding:7px 10px;text-align:left">Mã đơn</th><th style="padding:7px 10px;text-align:left">Tuyến</th><th style="padding:7px 10px;text-align:right">Cước</th><th style="padding:7px 10px;text-align:right">Đã thu</th><th style="padding:7px 10px;text-align:right">Còn nợ</th><th style="padding:7px 10px;text-align:left">Ngày</th><th style="padding:7px 10px"></th></tr>
+          </thead>
+          <tbody>${rows || '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Không có đơn.</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div style="text-align:right;margin-top:10px;font-size:14px">Tổng còn nợ: <b style="color:var(--danger)">${window.fmt(total)} ₫</b></div>
+    `, { width: '840px', footer: '<button class="btn btn-primary" onclick="closeModal()">Đóng</button>' });
+  }
+  /* Đánh dấu 1 đơn đã thu đủ (cước + trung chuyển + phí giao) */
+  window.collectDebtOrder = function (code) {
+    const o = window.STORE.get('orders', []).find(x => x.code === code);
+    if (!o) return;
+    const due = (o.freight || 0) + (o.transferFee || 0) + (o.lastMileMode === 'delivery' ? (o.lastMileFee || 0) : 0);
+    window.STORE.update('orders', code, { paidAmount: due });
+    window.toast('✓ Đã thu đủ đơn ' + code, 'success');
+    render();
+    /* mở lại danh sách của khách đó nếu vẫn còn đơn nợ, không thì đóng */
+    const idOf = window.buildOrderIdentity(window.STORE.get('orders', []));
+    const debtor = loadDebtors().find(x => x._idkey === idOf(o));
+    if (debtor) openDebtorOrders(debtor); else window.closeModal();
+  };
+
   /* === Popup: danh sách đơn THIẾU SĐT (công nợ chưa xác định) === */
   function openUnknownDebt() {
     const orders = window.STORE.get('orders', window.ORDERS || []);
+    const idOf = window.buildOrderIdentity(orders);
     const list = orders
-      .filter(o => orderRemaining(o) > 0 && window.orderIdentity(o) === '__unknown__')
+      .filter(o => orderRemaining(o) > 0 && idOf(o) === '__unknown__')
       .sort((a, b) => orderRemaining(b) - orderRemaining(a));
     const total = list.reduce((s, o) => s + orderRemaining(o), 0);
     const rows = list.map(o => `

@@ -767,32 +767,38 @@ window.validPhone = function (s) {
 window._stripD = function (s) {
   return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim();
 };
-/* Khóa định danh của 1 ĐƠN: 'p:<sđt>' nếu có SĐT hợp lệ, else 'n:<tên>', else '__unknown__' */
-window.orderIdentity = function (o) {
-  const vp = window.validPhone(o.custPhone || o.senderPhone);
-  if (vp) return 'p:' + vp;
-  const nm = window._stripD(o.custName);
-  if (nm && nm !== 'khong co ten') return 'n:' + nm;
-  return '__unknown__';
+/* Tạo HÀM định danh đơn DÙNG CHUNG cho 1 tập đơn — HỢP NHẤT theo tên→SĐT để 1 khách KHÔNG bị tách:
+   đơn cùng TÊN sẽ dùng chung SĐT hợp lệ của khách đó (nếu bất kỳ đơn nào của khách có SĐT). */
+window.buildOrderIdentity = function (orders) {
+  const n2p = {};
+  (orders || []).forEach(o => {
+    const nm = window._stripD(o.custName);
+    const vp = window.validPhone(o.custPhone || o.senderPhone);
+    if (nm && vp && !n2p[nm]) n2p[nm] = vp;
+  });
+  return function (o) {
+    const nm = window._stripD(o.custName);
+    const vp = window.validPhone(o.custPhone || o.senderPhone) || n2p[nm];
+    if (vp) return 'p:' + vp;
+    if (nm && nm !== 'khong co ten') return 'n:' + nm;
+    return '__unknown__';
+  };
 };
-/* Khóa định danh của 1 KHÁCH HÀNG (cùng quy tắc với đơn) */
-window.customerIdentity = function (c) {
-  const vp = window.validPhone(c && c.phone);
-  if (vp) return 'p:' + vp;
-  const nm = window._stripD(c && c.name);
-  return nm ? 'n:' + nm : '__none__';
+window.orderRemainingDue = function (o) {
+  if (!o || o.status === 'cancelled') return 0;
+  return Math.max(0, (o.freight || 0) + (o.transferFee || 0) + (o.lastMileMode === 'delivery' ? (o.lastMileFee || 0) : 0) - (o.paidAmount || 0));
 };
-/* Thống kê 1 KH TỪ ĐƠN THẬT (số đơn / doanh thu / công nợ) — mọi module gọi hàm này để khớp nhau */
+/* Thống kê 1 KH TỪ ĐƠN THẬT (số đơn / doanh thu / công nợ) — mọi module gọi hàm này để KHỚP nhau */
 window.customerStats = function (c, orders) {
   orders = orders || window.STORE.get('orders', window.ORDERS || []);
-  const ck = window.customerIdentity(c);
-  if (ck === '__none__') return { orders: 0, revenue: 0, debt: 0 };
-  const mine = orders.filter(o => o.status !== 'cancelled' && window.orderIdentity(o) === ck);
-  const due = o => Math.max(0, (o.freight || 0) + (o.transferFee || 0) + (o.lastMileMode === 'delivery' ? (o.lastMileFee || 0) : 0) - (o.paidAmount || 0));
+  const idOf = window.buildOrderIdentity(orders);
+  const ck = idOf({ custName: c && c.name, custPhone: c && c.phone });
+  if (ck === '__unknown__') return { orders: 0, revenue: 0, debt: 0 };
+  const mine = orders.filter(o => o.status !== 'cancelled' && idOf(o) === ck);
   return {
     orders: mine.length,
     revenue: mine.filter(o => o.status === 'delivered' || o.status === 'reconciled').reduce((s, o) => s + (o.freight || 0), 0),
-    debt: mine.reduce((s, o) => s + due(o), 0),
+    debt: mine.reduce((s, o) => s + window.orderRemainingDue(o), 0),
   };
 };
 
