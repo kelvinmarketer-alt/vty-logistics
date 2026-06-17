@@ -68,6 +68,7 @@
       return {
         ...base,
         _idkey: key,
+        name: a.name || base.name || '(không tên)', /* tên theo ĐƠN (hồ sơ KH có thể lệch) */
         staffOwner: base.staffOwner || STAFF_MAP[base.id] || 'Hoàng Mai',
         lastContact: base.lastContact || LAST_CONTACT_MAP[base.id] || a.oldest || '—',
         debt: a.debt,
