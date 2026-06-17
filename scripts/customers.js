@@ -27,9 +27,10 @@
     'boc-xep':     '💪 Bốc xếp',
   };
 
-  /* Decorate: thêm field thiếu cho mock data lần đầu */
-  function decorate(c) {
+  /* Decorate: số đơn / doanh thu / công nợ TÍNH TỪ ĐƠN THẬT (khớp với module Đơn hàng + Công nợ) */
+  function decorate(c, ordersCache) {
     const sid = c.serviceId || SVC_MAP[c.service] || 'lien-tinh';
+    const st = window.customerStats ? window.customerStats(c, ordersCache) : { orders: c.orders || 0, revenue: c.revenue || 0, debt: c.debt || 0 };
     return {
       ...c,
       group: c.group || c.groupName || 'Mới',
@@ -38,8 +39,10 @@
       staffOwner: c.staffOwner || STAFF_MAP[c.id] || 'Hoàng Mai',
       lastContact: c.lastContact || LAST_CONTACT_MAP[c.id] || c.lastOrder || '—',
       zalo: c.zalo || (c.phone || '').replace(/\s/g, ''),
-      orders: c.orders || 0,
-      revenue: c.revenue || 0,
+      orders: st.orders,
+      revenue: st.revenue,
+      debt: st.debt,
+      debtOverdue: c.debtOverdue || 0,
       serviceId: sid,
       serviceLabel: SVC_LABEL[sid] || '—',
     };
@@ -153,7 +156,8 @@
   }
 
   function render() {
-    customers = window.STORE.get('customers', initialData).map(decorate);
+    const ordersCache = window.STORE.get('orders', window.ORDERS || []);
+    customers = window.STORE.get('customers', initialData).map(c => decorate(c, ordersCache));
     renderKPIs(customers);
     const rows = customers.filter(c => quickMatch(c) && filterMatch(c) && searchMatch(c));
     rowCount.textContent = `Đang hiển thị ${rows.length} / ${customers.length} khách hàng`;
@@ -607,6 +611,7 @@
 
   /* Subscribe re-render when STORE.customers changes */
   window.STORE.subscribe('customers', render);
+  window.STORE.subscribe('orders', render); /* số đơn/doanh thu/công nợ tính từ đơn → đơn đổi thì cập nhật */
 
   /* Init */
   window.renderAppShell('customers', 'Quản lý khách hàng');

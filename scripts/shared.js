@@ -756,6 +756,47 @@ window.resolveCust = function(text) {
 };
 
 /* =========================================================
+   ĐỊNH DANH KHÁCH HÀNG TỪ ĐƠN — DÙNG CHUNG cho MỌI module (đơn/khách/công nợ/kế toán)
+   để số liệu KHỚP NHAU. Quy tắc: SĐT hợp lệ (≥8 số) là chính, không có thì theo TÊN;
+   thiếu cả 2 → "chưa xác định". (SĐT "0"/placeholder bị loại.)
+   ========================================================= */
+window.validPhone = function (s) {
+  const d = String(s || '').replace(/\D/g, '');
+  return d.length >= 8 ? d : '';
+};
+window._stripD = function (s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim();
+};
+/* Khóa định danh của 1 ĐƠN: 'p:<sđt>' nếu có SĐT hợp lệ, else 'n:<tên>', else '__unknown__' */
+window.orderIdentity = function (o) {
+  const vp = window.validPhone(o.custPhone || o.senderPhone);
+  if (vp) return 'p:' + vp;
+  const nm = window._stripD(o.custName);
+  if (nm && nm !== 'khong co ten') return 'n:' + nm;
+  return '__unknown__';
+};
+/* Khóa định danh của 1 KHÁCH HÀNG (cùng quy tắc với đơn) */
+window.customerIdentity = function (c) {
+  const vp = window.validPhone(c && c.phone);
+  if (vp) return 'p:' + vp;
+  const nm = window._stripD(c && c.name);
+  return nm ? 'n:' + nm : '__none__';
+};
+/* Thống kê 1 KH TỪ ĐƠN THẬT (số đơn / doanh thu / công nợ) — mọi module gọi hàm này để khớp nhau */
+window.customerStats = function (c, orders) {
+  orders = orders || window.STORE.get('orders', window.ORDERS || []);
+  const ck = window.customerIdentity(c);
+  if (ck === '__none__') return { orders: 0, revenue: 0, debt: 0 };
+  const mine = orders.filter(o => o.status !== 'cancelled' && window.orderIdentity(o) === ck);
+  const due = o => Math.max(0, (o.freight || 0) + (o.transferFee || 0) + (o.lastMileMode === 'delivery' ? (o.lastMileFee || 0) : 0) - (o.paidAmount || 0));
+  return {
+    orders: mine.length,
+    revenue: mine.filter(o => o.status === 'delivered' || o.status === 'reconciled').reduce((s, o) => s + (o.freight || 0), 0),
+    debt: mine.reduce((s, o) => s + due(o), 0),
+  };
+};
+
+/* =========================================================
    TỰ LƯU / NHẬN DIỆN KHÁCH HÀNG TỪ ĐƠN HÀNG
    - Đơn hàng là nơi nhập đủ thông tin KH. Khi lưu đơn:
      • Trùng (đã link cust) hoặc trùng TÊN + SĐT  → tăng "số đơn" của KH đó
@@ -769,23 +810,22 @@ window.upsertCustomerFromOrder = function (o, opts) {
   const inc = opts.increment !== false;            /* mặc định: tạo đơn mới → +1 */
   const name = (o.custName || o.senderName || '').trim();
   if (!name) return null;
-  const digits = s => String(s || '').replace(/\D/g, '');
   const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
   const phone = o.custPhone || o.senderPhone || '';
-  const ph = digits(phone);
+  const ph = window.validPhone(phone); /* CHỈ coi là SĐT khi ≥ 8 chữ số (loại "0"/placeholder) */
   const todayVN = new Date().toLocaleDateString('vi-VN');
   const customers = window.STORE.get('customers', window.CUSTOMERS || []);
 
-  /* Tìm KH: 1) đã link mã  2) cùng SĐT + tên  3) cùng SĐT  4) cùng tên (khi 2 bên đều chưa có SĐT) */
+  /* Tìm KH: 1) đã link mã  2) cùng SĐT hợp lệ + tên  3) cùng SĐT hợp lệ  4) cùng tên (khi 2 bên đều chưa có SĐT hợp lệ) */
   let c = o.cust ? customers.find(x => x.id === o.cust) : null;
-  if (!c && ph) c = customers.find(x => digits(x.phone) === ph && norm(x.name) === norm(name));
-  if (!c && ph) c = customers.find(x => digits(x.phone) === ph);
-  if (!c && !ph) c = customers.find(x => norm(x.name) === norm(name) && !digits(x.phone));
+  if (!c && ph) c = customers.find(x => window.validPhone(x.phone) === ph && norm(x.name) === norm(name));
+  if (!c && ph) c = customers.find(x => window.validPhone(x.phone) === ph);
+  if (!c && !ph) c = customers.find(x => norm(x.name) === norm(name) && !window.validPhone(x.phone));
 
   if (c) {
     const patch = { lastOrder: todayVN, lastContact: todayVN };
     if (inc) patch.orders = (c.orders || 0) + 1;          /* "đơn số 2, 3…" */
-    if (!digits(c.phone) && phone) patch.phone = phone;    /* bổ sung SĐT nếu KH cũ chưa có */
+    if (!window.validPhone(c.phone) && ph) patch.phone = phone;    /* bổ sung SĐT nếu KH cũ chưa có */
     if (!c.address && o.pickup && o.pickup !== '—') patch.address = o.pickup;
     window.STORE.update('customers', c.id, patch);
     if (o.cust !== c.id && o.code) window.STORE.update('orders', o.code, { cust: c.id });

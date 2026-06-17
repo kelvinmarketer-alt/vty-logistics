@@ -27,9 +27,9 @@
 
   const stripD = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
   const digits = s => String(s || '').replace(/\D/g, '');
-  /* CÔNG NỢ TÍNH TỪ ĐƠN THẬT — khớp theo SĐT TRƯỚC (chính xác nhất):
-     - Đơn CÓ SĐT → gộp theo SĐT (cùng SĐT = cùng khách, dù tên gõ khác nhau).
-     - Đơn KHÔNG có SĐT (kể cả có tên) → dồn vào "⚠️ Công nợ chưa xác định" (không gộp bừa theo tên). */
+  /* CÔNG NỢ TÍNH TỪ ĐƠN THẬT — định danh dùng chung window.orderIdentity:
+     SĐT hợp lệ (≥8 số) là chính → không có thì theo TÊN → thiếu cả 2 thì "chưa xác định".
+     (SĐT "0"/placeholder bị loại nên không gom nhầm nhiều khách vào 1.) */
   function loadDebtors() {
     const customers = window.STORE.get('customers', (window.CUSTOMERS || []).map(c => ({ ...c })));
     const orders = window.STORE.get('orders', window.ORDERS || []);
@@ -37,15 +37,16 @@
     orders.forEach(o => {
       const rem = orderRemaining(o);
       if (rem <= 0) return;
+      const key = window.orderIdentity(o);
+      const unknown = key === '__unknown__';
+      const ph = window.validPhone(o.custPhone || o.senderPhone);
       const nmRaw = (o.custName || '').trim();
-      const ph = digits(o.custPhone || o.senderPhone);
-      const unknown = !ph; /* không có SĐT → không xác định được khách */
-      const key = unknown ? '__unknown__' : ph;
       const displayName = unknown ? '⚠️ Công nợ chưa xác định' : (nmRaw || ('KH ' + ph));
-      if (!agg[key]) agg[key] = { debt: 0, count: 0, custId: o.cust || '', name: displayName, phone: unknown ? '' : ph, oldest: o.date, unknown };
+      if (!agg[key]) agg[key] = { debt: 0, count: 0, custId: o.cust || '', name: displayName, phone: ph, oldest: o.date, unknown };
       const a = agg[key];
       a.debt += rem; a.count += 1;
-      if (!unknown && nmRaw && (!a.name || a.name.startsWith('KH '))) a.name = nmRaw; /* ưu tiên tên thật cho dòng theo SĐT */
+      if (!unknown && nmRaw && (!a.name || a.name.startsWith('KH '))) a.name = nmRaw;
+      if (ph && !a.phone) a.phone = ph;
       if (!a.custId && o.cust) a.custId = o.cust;
       if (daysSince(o.date) > daysSince(a.oldest)) a.oldest = o.date;
     });
@@ -56,12 +57,12 @@
         return { id: '__unknown__', code: '⚠️ Chưa rõ', name: a.name, phone: '—', contact: '', staffOwner: '—',
           lastContact: a.oldest || '—', debt: a.debt, debtOverdue: 0, _overdue: 0, _orderCount: a.count, _unknown: true };
       }
-      /* Khớp hồ sơ KH: ưu tiên theo SĐT, rồi tên, rồi mã */
-      const c = (a.phone && customers.find(x => digits(x.phone) === a.phone))
+      /* Khớp hồ sơ KH: theo SĐT hợp lệ, rồi tên, rồi mã */
+      const c = (a.phone && customers.find(x => window.validPhone(x.phone) === a.phone))
         || customers.find(x => stripD(x.name) === stripD(a.name))
         || (a.custId ? customers.find(x => x.id === a.custId) : null);
       const base = c ? { ...c } : { id: a.custId || key, code: a.custId || '—', name: a.name || '(không tên)', phone: a.phone, contact: a.name };
-      if (!digits(base.phone) && a.phone) base.phone = a.phone;
+      if (!window.validPhone(base.phone) && a.phone) base.phone = a.phone;
       const overdue = Math.max(0, daysSince(a.oldest) - 30); /* hạn thanh toán 30 ngày */
       return {
         ...base,
@@ -213,7 +214,7 @@
   function openUnknownDebt() {
     const orders = window.STORE.get('orders', window.ORDERS || []);
     const list = orders
-      .filter(o => orderRemaining(o) > 0 && !digits(o.custPhone || o.senderPhone))
+      .filter(o => orderRemaining(o) > 0 && window.orderIdentity(o) === '__unknown__')
       .sort((a, b) => orderRemaining(b) - orderRemaining(a));
     const total = list.reduce((s, o) => s + orderRemaining(o), 0);
     const rows = list.map(o => `
