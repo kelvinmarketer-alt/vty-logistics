@@ -1354,9 +1354,10 @@
     w.document.close();
   };
 
-  /* === Auto-open create modal if ?createFor=KH00X === */
+  /* === Auto-open create modal if ?createFor=KH00X · auto-open đơn nếu ?open=VTY-xxx === */
   const urlParams = new URLSearchParams(location.search);
   const prefillCust = urlParams.get('createFor');
+  const openCode = urlParams.get('open');
 
   /* Subscribe + init */
   window.STORE.subscribe('orders', render);
@@ -1364,4 +1365,5 @@
   window.bindTabs();
   render();
   if (prefillCust) setTimeout(() => window.openCreateOrder(prefillCust), 200);
+  if (openCode) setTimeout(() => window.openOrder(openCode), 250);
 })();

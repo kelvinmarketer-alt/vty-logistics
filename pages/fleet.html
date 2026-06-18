@@ -97,6 +97,44 @@
       <div class="page-tab active" onclick="switchPageTab('vehicles')">🚚 Xe nội bộ</div>
       <div class="page-tab" onclick="switchPageTab('drivers')">🧑‍✈️ Tài xế nội bộ</div>
       <div class="page-tab" onclick="switchPageTab('partners')">🤝 Đối tác ngoài</div>
+      <div class="page-tab" onclick="switchPageTab('report')">📊 Sản lượng theo xe</div>
+    </div>
+
+    <!-- Báo cáo sản lượng theo xe -->
+    <div id="paneReport" style="display:none">
+      <div style="background:#EEF2FB;border:1px solid var(--line);border-radius:10px;padding:11px 16px;margin-bottom:12px;font-size:13px;color:var(--navy)">
+        📊 Hiệu suất từng xe trên <b>toàn bộ đơn</b> (gồm cả đã giao/đối soát). Bấm vào 1 xe để xem danh sách đơn của xe đó · mã đơn bấm được để mở chi tiết.
+      </div>
+      <div class="filter-bar">
+        <div class="search-in" style="flex:1.5">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="qReport" placeholder="Tìm biển số / lái xe / đối tác...">
+        </div>
+        <select id="frScope">
+          <option value="all">Tất cả đơn</option>
+          <option value="open">Đơn đang chạy (chưa giao xong)</option>
+          <option value="done">Đơn đã giao / đối soát</option>
+        </select>
+      </div>
+      <div class="table-card">
+        <div class="table-head"><div class="count" id="reportCount">Đang tải…</div></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>🚚 Xe (biển số)</th>
+                <th>Lái xe / Đối tác</th>
+                <th class="num">Số đơn</th>
+                <th class="num">Sản lượng (kg)</th>
+                <th class="num">Tổng cước</th>
+                <th class="num">Đã thu</th>
+                <th class="num">Còn thu</th>
+              </tr>
+            </thead>
+            <tbody id="reportTbody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- Vehicles view -->

@@ -36,6 +36,8 @@
     document.getElementById('paneVehicles').style.display = tab === 'vehicles' ? 'block' : 'none';
     document.getElementById('paneDrivers').style.display  = tab === 'drivers'  ? 'block' : 'none';
     document.getElementById('panePartners').style.display = tab === 'partners' ? 'block' : 'none';
+    document.getElementById('paneReport').style.display   = tab === 'report'   ? 'block' : 'none';
+    if (tab === 'report') renderVehicleReport();
   };
 
   /* === Partners render === */
@@ -1186,6 +1188,108 @@
     });
   };
 
+  /* ============ BÁO CÁO SẢN LƯỢNG THEO XE ============ */
+  const _due = o => (window.orderRemainingDue ? window.orderRemainingDue(o)
+                     : Math.max(0, (o.freight || 0) + (o.transferFee || 0) - (o.paidAmount || 0)));
+  const STAT_LAB = { confirmed:'Mới', pickup:'Đang lấy', transit:'Đang giao', delivered:'Đã giao', reconciled:'Đối soát', cancelled:'Hủy' };
+
+  /* Gom đơn theo biển số xe. Trả mảng { plate, who, count, kg, freight, paid, due, orders } */
+  function buildVehicleGroups(scope) {
+    const ords = window.STORE.get('orders', window.ORDERS || []).filter(o => o.status !== 'cancelled');
+    const inScope = o =>
+      scope === 'open' ? ['confirmed','pickup','transit'].includes(o.status)
+      : scope === 'done' ? ['delivered','reconciled'].includes(o.status)
+      : true;
+    const groups = {};
+    ords.filter(inScope).forEach(o => {
+      const plate = (o.vehicle && o.vehicle !== '—') ? o.vehicle : '__none__';
+      const g = groups[plate] || (groups[plate] = { plate, orders: [], whoCount: {} });
+      g.orders.push(o);
+      const who = o.external ? (o.partnerContact || o.partnerName || '') : (o.driverName && o.driverName !== '—' ? o.driverName : '');
+      if (who) g.whoCount[who] = (g.whoCount[who] || 0) + 1;
+    });
+    return Object.values(groups).map(g => {
+      const who = Object.keys(g.whoCount).sort((a, b) => g.whoCount[b] - g.whoCount[a]);
+      return {
+        plate: g.plate,
+        who: who.slice(0, 2).join(', ') + (who.length > 2 ? ' +' + (who.length - 2) : ''),
+        external: g.orders.some(o => o.external),
+        count: g.orders.length,
+        kg: g.orders.reduce((s, o) => s + (o.weight || 0), 0),
+        freight: g.orders.reduce((s, o) => s + (o.freight || 0), 0),
+        paid: g.orders.reduce((s, o) => s + (o.paidAmount || 0), 0),
+        due: g.orders.reduce((s, o) => s + _due(o), 0),
+        orders: g.orders
+      };
+    }).sort((a, b) => b.freight - a.freight);
+  }
+
+  function renderVehicleReport() {
+    const scope = document.getElementById('frScope')?.value || 'all';
+    const q = (document.getElementById('qReport')?.value || '').trim().toLowerCase();
+    let rows = buildVehicleGroups(scope);
+    if (q) rows = rows.filter(r => (r.plate + ' ' + r.who).toLowerCase().includes(q));
+
+    const tot = rows.reduce((s, r) => ({ count: s.count + r.count, kg: s.kg + r.kg, freight: s.freight + r.freight, paid: s.paid + r.paid, due: s.due + r.due }), { count:0, kg:0, freight:0, paid:0, due:0 });
+    const cnt = document.getElementById('reportCount');
+    if (cnt) cnt.innerHTML = `<b>${rows.filter(r => r.plate !== '__none__').length}</b> xe · ${tot.count} đơn · sản lượng <b>${window.fmt(tot.kg)} kg</b> · cước <b>${window.fmtShort(tot.freight)}₫</b> · còn thu <b style="color:var(--danger)">${window.fmtShort(tot.due)}₫</b>`;
+
+    const tb = document.getElementById('reportTbody');
+    if (!tb) return;
+    tb.innerHTML = rows.map(r => {
+      const none = r.plate === '__none__';
+      const plateLab = none ? '⚠️ Chưa xếp xe' : '🚚 ' + r.plate;
+      return `<tr style="cursor:pointer" onclick="window.openVehicleOrders('${encodeURIComponent(r.plate)}')">
+        <td><b style="color:${none ? 'var(--warn)' : 'var(--navy)'}">${plateLab}</b>${r.external ? ' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>' : ''}</td>
+        <td>${r.who || '<span style="color:var(--muted)">—</span>'}</td>
+        <td class="num"><b>${r.count}</b></td>
+        <td class="num">${window.fmt(r.kg)}</td>
+        <td class="num"><b>${window.fmt(r.freight)}</b></td>
+        <td class="num" style="color:var(--ok)">${window.fmt(r.paid)}</td>
+        <td class="num" style="color:${r.due > 0 ? 'var(--danger)' : 'var(--muted)'};font-weight:${r.due > 0 ? 700 : 400}">${window.fmt(r.due)}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">Chưa có đơn nào gán xe.</td></tr>`;
+  }
+  window.renderVehicleReport = renderVehicleReport;
+
+  /* Popup: toàn bộ đơn của 1 xe · mã đơn link sang trang Đơn hàng */
+  window.openVehicleOrders = function (plateEnc) {
+    const plate = decodeURIComponent(plateEnc);
+    const scope = document.getElementById('frScope')?.value || 'all';
+    const g = buildVehicleGroups(scope).find(r => r.plate === plate);
+    if (!g) { window.toast('Không tìm thấy đơn của xe này', 'warn'); return; }
+    const title = plate === '__none__' ? '⚠️ Đơn chưa xếp xe' : '🚚 ' + plate + (g.who ? ' · ' + g.who : '');
+    const rows = g.orders.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(o => {
+      const due = _due(o);
+      return `<tr style="border-top:1px solid var(--line)">
+        <td style="padding:7px 8px"><a href="orders.html?open=${encodeURIComponent(o.code)}" style="color:var(--navy);font-weight:700;text-decoration:none">${o.code} ↗</a></td>
+        <td style="padding:7px 8px">${o.date || '—'}</td>
+        <td style="padding:7px 8px">${o.custName || '—'}</td>
+        <td style="padding:7px 8px;text-align:right">${window.fmt(o.weight || 0)} kg</td>
+        <td style="padding:7px 8px;text-align:right;font-weight:600">${window.fmt(o.freight || 0)}</td>
+        <td style="padding:7px 8px;text-align:right;color:${due > 0 ? 'var(--danger)' : 'var(--ok)'};font-weight:${due > 0 ? 700 : 400}">${due > 0 ? window.fmt(due) : '✓'}</td>
+        <td style="padding:7px 8px"><span class="status-pill st-${o.status}">${STAT_LAB[o.status] || o.status}</span></td>
+      </tr>`;
+    }).join('');
+    const body = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <div style="flex:1;min-width:120px;padding:9px 12px;background:var(--bg);border-radius:8px"><div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">Số đơn</div><div style="font-size:19px;font-weight:800;color:var(--navy)">${g.count}</div></div>
+        <div style="flex:1;min-width:120px;padding:9px 12px;background:var(--bg);border-radius:8px"><div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">Sản lượng</div><div style="font-size:19px;font-weight:800;color:var(--navy)">${window.fmt(g.kg)} kg</div></div>
+        <div style="flex:1;min-width:120px;padding:9px 12px;background:#EEF2FB;border-radius:8px"><div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">Tổng cước</div><div style="font-size:19px;font-weight:800;color:var(--navy)">${window.fmtShort(g.freight)}₫</div></div>
+        <div style="flex:1;min-width:120px;padding:9px 12px;background:${g.due > 0 ? '#FEF2F2' : '#F0FDF4'};border-radius:8px"><div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">Còn thu</div><div style="font-size:19px;font-weight:800;color:${g.due > 0 ? 'var(--danger)' : 'var(--ok)'}">${window.fmtShort(g.due)}₫</div></div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead><tr style="background:var(--bg);color:var(--muted);font-size:11px;text-transform:uppercase">
+          <th style="padding:7px 8px;text-align:left">Mã đơn</th><th style="padding:7px 8px;text-align:left">Ngày</th><th style="padding:7px 8px;text-align:left">Khách</th>
+          <th style="padding:7px 8px;text-align:right">Sản lượng</th><th style="padding:7px 8px;text-align:right">Cước</th><th style="padding:7px 8px;text-align:right">Còn thu</th><th style="padding:7px 8px;text-align:left">Trạng thái</th>
+        </tr></thead><tbody>${rows}</tbody>
+      </table>`;
+    window.openModal(title, body, {
+      width: '860px',
+      footer: `<button class="btn btn-ghost" onclick="closeModal()">Đóng</button>`
+    });
+  };
+
   /* Subscribe + Init */
   window.STORE.subscribe('vehicles', renderVehicles);
   window.STORE.subscribe('drivers', renderDrivers);
@@ -1201,4 +1305,10 @@
   document.getElementById('fdStatus').addEventListener('change', renderDrivers);
   document.getElementById('qPartner')?.addEventListener('input', renderPartners);
   document.getElementById('fpKind')?.addEventListener('change', renderPartners);
+  document.getElementById('qReport')?.addEventListener('input', renderVehicleReport);
+  document.getElementById('frScope')?.addEventListener('change', renderVehicleReport);
+  /* Báo cáo cập nhật realtime khi đơn thay đổi (chỉ render nếu đang mở tab báo cáo) */
+  window.STORE.subscribe('orders', () => {
+    if (document.getElementById('paneReport')?.style.display !== 'none') renderVehicleReport();
+  });
 })();
