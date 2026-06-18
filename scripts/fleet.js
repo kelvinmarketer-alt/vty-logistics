@@ -1193,13 +1193,26 @@
                      : Math.max(0, (o.freight || 0) + (o.transferFee || 0) - (o.paidAmount || 0)));
   const STAT_LAB = { confirmed:'Mới', pickup:'Đang lấy', transit:'Đang giao', delivered:'Đã giao', reconciled:'Đối soát', cancelled:'Hủy' };
 
-  /* Gom đơn theo biển số xe. Trả mảng { plate, who, count, kg, freight, paid, due, orders } */
-  function buildVehicleGroups(scope) {
+  /* Đổi ngày đơn dd/mm/yyyy → yyyy-mm-dd để so sánh khoảng. '' nếu không đọc được. */
+  function orderISO(o) {
+    const m = String(o.date || '').match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+    return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : '';
+  }
+
+  /* Gom đơn theo biển số xe, lọc theo phạm vi + khoảng ngày [from, to] (ISO). */
+  function buildVehicleGroups(scope, from, to) {
     const ords = window.STORE.get('orders', window.ORDERS || []).filter(o => o.status !== 'cancelled');
-    const inScope = o =>
-      scope === 'open' ? ['confirmed','pickup','transit'].includes(o.status)
-      : scope === 'done' ? ['delivered','reconciled'].includes(o.status)
-      : true;
+    const inScope = o => {
+      if (scope === 'open' && !['confirmed','pickup','transit'].includes(o.status)) return false;
+      if (scope === 'done' && !['delivered','reconciled'].includes(o.status)) return false;
+      if (from || to) {
+        const iso = orderISO(o);
+        if (!iso) return false;                 /* đơn không có ngày → loại khi đang lọc theo ngày */
+        if (from && iso < from) return false;
+        if (to && iso > to) return false;
+      }
+      return true;
+    };
     const groups = {};
     const topKey = m => { const ks = Object.keys(m); return ks.length ? ks.sort((a, b) => m[b] - m[a]) : []; };
     ords.filter(inScope).forEach(o => {
@@ -1230,11 +1243,20 @@
     }).sort((a, b) => b.freight - a.freight);
   }
 
+  function fmtDMY(iso) { const [y,m,d] = (iso || '').split('-'); return iso ? `${d}/${m}/${y}` : ''; }
+
   function renderVehicleReport() {
     const scope = document.getElementById('frScope')?.value || 'all';
     const q = (document.getElementById('qReport')?.value || '').trim().toLowerCase();
-    let rows = buildVehicleGroups(scope);
+    const from = document.getElementById('frFrom')?.value || '';
+    const to = document.getElementById('frTo')?.value || '';
+    let rows = buildVehicleGroups(scope, from, to);
     if (q) rows = rows.filter(r => (r.plate + ' ' + r.nhaXe + ' ' + r.laiXe).toLowerCase().includes(q));
+
+    const rl = document.getElementById('frRangeLabel');
+    if (rl) rl.textContent = (from || to)
+      ? '· ' + (from ? fmtDMY(from) : '…') + ' → ' + (to ? fmtDMY(to) : '…')
+      : '· Toàn bộ thời gian';
 
     const tot = rows.reduce((s, r) => ({ count: s.count + r.count, kg: s.kg + r.kg, freight: s.freight + r.freight, paid: s.paid + r.paid, due: s.due + r.due }), { count:0, kg:0, freight:0, paid:0, due:0 });
     const cnt = document.getElementById('reportCount');
@@ -1262,7 +1284,9 @@
   window.openVehicleOrders = function (plateEnc) {
     const plate = decodeURIComponent(plateEnc);
     const scope = document.getElementById('frScope')?.value || 'all';
-    const g = buildVehicleGroups(scope).find(r => r.plate === plate);
+    const from = document.getElementById('frFrom')?.value || '';
+    const to = document.getElementById('frTo')?.value || '';
+    const g = buildVehicleGroups(scope, from, to).find(r => r.plate === plate);
     if (!g) { window.toast('Không tìm thấy đơn của xe này', 'warn'); return; }
     const title = plate === '__none__' ? '⚠️ Đơn chưa xếp xe' : '🚚 ' + plate + (g.nhaXe ? ' · 🏢 ' + g.nhaXe : '') + (g.laiXe ? ' · 👤 ' + g.laiXe : '');
     const rows = g.orders.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(o => {
@@ -1313,6 +1337,27 @@
   document.getElementById('fpKind')?.addEventListener('change', renderPartners);
   document.getElementById('qReport')?.addEventListener('input', renderVehicleReport);
   document.getElementById('frScope')?.addEventListener('change', renderVehicleReport);
+  document.getElementById('frFrom')?.addEventListener('change', () => { _clearChipActive(); renderVehicleReport(); });
+  document.getElementById('frTo')?.addEventListener('change', () => { _clearChipActive(); renderVehicleReport(); });
+
+  /* Nút nhanh khoảng thời gian */
+  function _toISO(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+  function _clearChipActive() { document.querySelectorAll('#frChips button').forEach(b => { b.classList.remove('btn-primary'); b.classList.add('btn-ghost'); }); }
+  document.querySelectorAll('#frChips button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = btn.dataset.range, now = new Date();
+      let from = '', to = '';
+      if (r === 'today') { from = to = _toISO(now); }
+      else if (r === '7d') { const s = new Date(now); s.setDate(now.getDate() - 6); from = _toISO(s); to = _toISO(now); }
+      else if (r === 'month') { from = _toISO(new Date(now.getFullYear(), now.getMonth(), 1)); to = _toISO(now); }
+      /* 'all' → để trống */
+      const fEl = document.getElementById('frFrom'), tEl = document.getElementById('frTo');
+      if (fEl) fEl.value = from; if (tEl) tEl.value = to;
+      _clearChipActive();
+      btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary');
+      renderVehicleReport();
+    });
+  });
   /* Báo cáo cập nhật realtime khi đơn thay đổi (chỉ render nếu đang mở tab báo cáo) */
   window.STORE.subscribe('orders', () => {
     if (document.getElementById('paneReport')?.style.display !== 'none') renderVehicleReport();
