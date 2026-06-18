@@ -3,19 +3,25 @@
    ========================================================= */
 (function () {
 
+  /* Ngày báo cáo đang chọn (mặc định = hôm nay). Định dạng lưu yyyy-mm-dd. */
+  function todayISO() { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
+  let selISO = todayISO();
+  const selParts = () => { const [y,m,d] = selISO.split('-').map(Number); return { y, m, d }; };
+  const isSelToday = () => selISO === todayISO();
+
   function calcKPIs() {
     const orders = window.STORE.get('orders', window.ORDERS || []);
     const due = window.orderRemainingDue || (o => Math.max(0, (o.freight || 0) + (o.transferFee || 0) - (o.paidAmount || 0)));
     const idOf = window.buildOrderIdentity ? window.buildOrderIdentity(orders) : (o => (o.custName || '').toLowerCase());
     const active = orders.filter(o => o.status !== 'cancelled');
 
-    /* HÔM NAY — đọc ngày dd/mm/yyyy trong o.date, so với ngày thật */
-    const now = new Date();
-    const isToday = o => {
+    /* NGÀY ĐANG CHỌN — đọc ngày dd/mm/yyyy trong o.date, so với ngày được chọn */
+    const sel = selParts();
+    const isOnDay = o => {
       const m = String(o.date || '').match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
-      return m && +m[1] === now.getDate() && +m[2] === now.getMonth() + 1 && +m[3] === now.getFullYear();
+      return m && +m[1] === sel.d && +m[2] === sel.m && +m[3] === sel.y;
     };
-    const todayOrders = active.filter(isToday);
+    const todayOrders = active.filter(isOnDay);
     const todayRevenue = todayOrders.reduce((s, o) => s + (o.freight || 0), 0);
     const todayDue = todayOrders.reduce((s, o) => s + due(o), 0);
     const todayCustomers = new Set(todayOrders.map(idOf).filter(k => k !== '__unknown__')).size;
@@ -32,13 +38,26 @@
     const k = calcKPIs();
     const kpiEl = document.querySelector('.kpis');
     if (kpiEl) {
+      const sel = selParts();
+      const dLab = isSelToday() ? 'hôm nay' : `ngày ${String(sel.d).padStart(2,'0')}/${String(sel.m).padStart(2,'0')}`;
       kpiEl.innerHTML = `
-        <div class="kpi k-1"><div class="kpi-label">Đơn hôm nay</div><div class="kpi-value">${k.todayOrders}</div><div class="kpi-trend">Tổng ${k.totalOrders} đơn</div><div class="kpi-icon">📦</div></div>
-        <div class="kpi k-2"><div class="kpi-label">Khách hôm nay</div><div class="kpi-value">${k.todayCustomers}</div><div class="kpi-trend up">${k.totalCustomers} khách tổng</div><div class="kpi-icon">👥</div></div>
-        <div class="kpi k-4"><div class="kpi-label">Doanh thu hôm nay</div><div class="kpi-value">${window.fmtShort(k.todayRevenue)}</div><div class="kpi-trend up">cước đơn phát sinh hôm nay</div><div class="kpi-icon">💰</div></div>
-        <div class="kpi k-3"><div class="kpi-label">Cần thu hôm nay</div><div class="kpi-value">${window.fmtShort(k.todayDue)}</div><div class="kpi-trend ${k.todayDue ? 'down' : ''}">còn phải thu từ đơn hôm nay</div><div class="kpi-icon">🧾</div></div>
+        <div class="kpi k-1"><div class="kpi-label">Đơn ${dLab}</div><div class="kpi-value">${k.todayOrders}</div><div class="kpi-trend">Tổng ${k.totalOrders} đơn</div><div class="kpi-icon">📦</div></div>
+        <div class="kpi k-2"><div class="kpi-label">Khách ${dLab}</div><div class="kpi-value">${k.todayCustomers}</div><div class="kpi-trend up">${k.totalCustomers} khách tổng</div><div class="kpi-icon">👥</div></div>
+        <div class="kpi k-4"><div class="kpi-label">Doanh thu ${dLab}</div><div class="kpi-value">${window.fmtShort(k.todayRevenue)}</div><div class="kpi-trend up">cước đơn phát sinh ${dLab}</div><div class="kpi-icon">💰</div></div>
+        <div class="kpi k-3"><div class="kpi-label">Cần thu ${dLab}</div><div class="kpi-value">${window.fmtShort(k.todayDue)}</div><div class="kpi-trend ${k.todayDue ? 'down' : ''}">còn phải thu từ đơn ${dLab}</div><div class="kpi-icon">🧾</div></div>
         <div class="kpi k-5"><div class="kpi-label">Tổng công nợ phải thu</div><div class="kpi-value">${window.fmtShort(k.totalReceivable)}</div><div class="kpi-trend down">${k.debtorCount} khách đang nợ</div><div class="kpi-icon">📉</div></div>
       `;
+    }
+
+    /* Đồng bộ ô chọn ngày + nhãn */
+    const dInput = document.getElementById('reportDate');
+    if (dInput && dInput.value !== selISO) dInput.value = selISO;
+    const dLabEl = document.getElementById('reportDateLabel');
+    if (dLabEl) {
+      const sel = selParts();
+      dLabEl.textContent = isSelToday()
+        ? `· Đang xem hôm nay (${String(sel.d).padStart(2,'0')}/${String(sel.m).padStart(2,'0')}/${sel.y})`
+        : `· ${k.todayOrders} đơn ngày ${String(sel.d).padStart(2,'0')}/${String(sel.m).padStart(2,'0')}/${sel.y}`;
     }
 
     /* Recent orders (5 mới nhất) */
@@ -152,6 +171,17 @@
 
   /* Init */
   window.renderAppShell('dashboard', 'Dashboard');
+
+  /* Wire thanh chọn ngày báo cáo */
+  const dInput = document.getElementById('reportDate');
+  if (dInput) {
+    dInput.value = selISO;
+    dInput.max = todayISO();
+    dInput.onchange = () => { if (dInput.value) { selISO = dInput.value; render(); } };
+  }
+  const btnToday = document.getElementById('btnToday');
+  if (btnToday) btnToday.onclick = () => { selISO = todayISO(); render(); };
+
   render();
   renderChart();
 
