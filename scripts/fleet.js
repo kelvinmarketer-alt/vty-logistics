@@ -1201,18 +1201,24 @@
       : scope === 'done' ? ['delivered','reconciled'].includes(o.status)
       : true;
     const groups = {};
+    const topKey = m => { const ks = Object.keys(m); return ks.length ? ks.sort((a, b) => m[b] - m[a]) : []; };
     ords.filter(inScope).forEach(o => {
       const plate = (o.vehicle && o.vehicle !== '—') ? o.vehicle : '__none__';
-      const g = groups[plate] || (groups[plate] = { plate, orders: [], whoCount: {} });
+      const g = groups[plate] || (groups[plate] = { plate, orders: [], nhaXe: {}, laiXe: {} });
       g.orders.push(o);
-      const who = o.external ? (o.partnerContact || o.partnerName || '') : (o.driverName && o.driverName !== '—' ? o.driverName : '');
-      if (who) g.whoCount[who] = (g.whoCount[who] || 0) + 1;
+      /* Nhà xe / đội xe = tên đối tác · Lái xe = người liên hệ (đối tác ngoài) hoặc tài xế nội bộ */
+      const nx = o.external ? (o.partnerName || '') : '';
+      const lx = o.external ? (o.partnerContact || '') : (o.driverName && o.driverName !== '—' ? o.driverName : '');
+      if (nx) g.nhaXe[nx] = (g.nhaXe[nx] || 0) + 1;
+      if (lx && lx.toLowerCase() !== nx.toLowerCase()) g.laiXe[lx] = (g.laiXe[lx] || 0) + 1;
     });
+    const fmtList = arr => arr.slice(0, 2).join(', ') + (arr.length > 2 ? ' +' + (arr.length - 2) : '');
     return Object.values(groups).map(g => {
-      const who = Object.keys(g.whoCount).sort((a, b) => g.whoCount[b] - g.whoCount[a]);
+      const nhaXe = topKey(g.nhaXe), laiXe = topKey(g.laiXe);
       return {
         plate: g.plate,
-        who: who.slice(0, 2).join(', ') + (who.length > 2 ? ' +' + (who.length - 2) : ''),
+        nhaXe: fmtList(nhaXe),
+        laiXe: fmtList(laiXe),
         external: g.orders.some(o => o.external),
         count: g.orders.length,
         kg: g.orders.reduce((s, o) => s + (o.weight || 0), 0),
@@ -1228,7 +1234,7 @@
     const scope = document.getElementById('frScope')?.value || 'all';
     const q = (document.getElementById('qReport')?.value || '').trim().toLowerCase();
     let rows = buildVehicleGroups(scope);
-    if (q) rows = rows.filter(r => (r.plate + ' ' + r.who).toLowerCase().includes(q));
+    if (q) rows = rows.filter(r => (r.plate + ' ' + r.nhaXe + ' ' + r.laiXe).toLowerCase().includes(q));
 
     const tot = rows.reduce((s, r) => ({ count: s.count + r.count, kg: s.kg + r.kg, freight: s.freight + r.freight, paid: s.paid + r.paid, due: s.due + r.due }), { count:0, kg:0, freight:0, paid:0, due:0 });
     const cnt = document.getElementById('reportCount');
@@ -1241,7 +1247,7 @@
       const plateLab = none ? '⚠️ Chưa xếp xe' : '🚚 ' + r.plate;
       return `<tr style="cursor:pointer" onclick="window.openVehicleOrders('${encodeURIComponent(r.plate)}')">
         <td><b style="color:${none ? 'var(--warn)' : 'var(--navy)'}">${plateLab}</b>${r.external ? ' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>' : ''}</td>
-        <td>${r.who || '<span style="color:var(--muted)">—</span>'}</td>
+        <td>${r.nhaXe ? '<div style="font-weight:600;color:var(--navy)">🏢 ' + r.nhaXe + '</div>' : ''}${r.laiXe ? '<div style="font-size:12px;color:var(--muted)">👤 ' + r.laiXe + '</div>' : ''}${(!r.nhaXe && !r.laiXe) ? '<span style="color:var(--muted)">—</span>' : ''}</td>
         <td class="num"><b>${r.count}</b></td>
         <td class="num">${window.fmt(r.kg)}</td>
         <td class="num"><b>${window.fmt(r.freight)}</b></td>
@@ -1258,7 +1264,7 @@
     const scope = document.getElementById('frScope')?.value || 'all';
     const g = buildVehicleGroups(scope).find(r => r.plate === plate);
     if (!g) { window.toast('Không tìm thấy đơn của xe này', 'warn'); return; }
-    const title = plate === '__none__' ? '⚠️ Đơn chưa xếp xe' : '🚚 ' + plate + (g.who ? ' · ' + g.who : '');
+    const title = plate === '__none__' ? '⚠️ Đơn chưa xếp xe' : '🚚 ' + plate + (g.nhaXe ? ' · 🏢 ' + g.nhaXe : '') + (g.laiXe ? ' · 👤 ' + g.laiXe : '');
     const rows = g.orders.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(o => {
       const due = _due(o);
       return `<tr style="border-top:1px solid var(--line)">
