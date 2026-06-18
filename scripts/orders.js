@@ -135,6 +135,7 @@
           ${o.cod ? `<span><span style="color:var(--muted);font-size:11px">COD</span> <b>${window.fmt(o.cod)}</b></span>` : ''}
           <div style="flex:1"></div>
           <div class="row-actions" onclick="event.stopPropagation()">
+            <button title="Gán xe / tài xế" data-act="assign" data-code="${o.code}" ${o.status==='cancelled'||o.status==='reconciled'?'disabled':''}>🚚</button>
             <button title="In phiếu" data-act="print" data-code="${o.code}">🖨</button>
             <button title="Sửa" data-act="edit" data-code="${o.code}">✏️</button>
             <button title="Hủy đơn" data-act="cancel" data-code="${o.code}" style="color:var(--danger)" ${o.status==='cancelled'||o.status==='reconciled'?'disabled':''}>🗑</button>
@@ -164,6 +165,7 @@
         const code = btn.dataset.code;
         const act = btn.dataset.act;
         if (act === 'next') advanceStatus(code);
+        else if (act === 'assign') window.openAssignOrder(code);
         else if (act === 'print') window.toast('In phiếu ' + code, 'info');
         else if (act === 'edit') window.openCreateOrder(orders.find(x => x.code === code));
         else if (act === 'cancel') cancelOrder(code);
@@ -979,6 +981,104 @@
     ['oFreight','oPartnerCost'].forEach(id => {
       document.getElementById(id)?.addEventListener('input', updateProfit);
     });
+  };
+
+  /* ===== GÁN XE / TÀI XẾ NHANH (không cần mở Sửa đơn) ===== */
+  window.openAssignOrder = function(code) {
+    const o = window.STORE.get('orders', []).find(x => x.code === code);
+    if (!o) { window.toast('Không tìm thấy đơn', 'warn'); return; }
+    const drivers = window.STORE.get('drivers', window.DRIVERS || []);
+    const vehicles = window.STORE.get('vehicles', window.VEHICLES || []);
+    const partners = window.STORE.get('partners', window.PARTNERS || []).filter(p => p.active);
+    const drvItems = drivers.map(d => ({ id: d.id, label: d.name, sub: [d.primaryPlate, d.phone, d.code].filter(Boolean).join(' · '), search: `${d.name} ${d.primaryPlate || ''} ${d.phone || ''} ${d.code || ''}` }));
+    const vehItems = vehicles.map(v => ({ id: v.id, label: v.plate, sub: [v.type, v.cap ? 'tải ' + v.cap + (v.capUnit || '') : ''].filter(Boolean).join(' · '), search: `${v.plate} ${v.type || ''}` }));
+    const partnerItems = partners.map(p => ({ id: p.id, label: p.name, sub: [p.code, p.vehiclePlate, (p.contact && p.contact !== p.name) ? '👤 ' + p.contact : ''].filter(Boolean).join(' · '), search: `${p.name} ${p.contact || ''} ${p.vehiclePlate || ''} ${p.phone || ''} ${p.code || ''}` }));
+    const isExt = !!o.external;
+
+    window.openModal('🚚 Gán xe / tài xế — ' + code, `
+      <div style="margin-bottom:12px;padding:9px 12px;background:#F3F4F6;border-radius:8px;font-size:12.5px">
+        👤 <b>${o.custName || '—'}</b> · 🚏 ${(o.pickup||'').split(',')[0]} → ${(o.drop||'').split(',')[0]} · 📦 ${o.weight ? o.weight + 'kg' : (o.qty||0) + ' kiện'}
+      </div>
+      <div class="check-grid cols-2" style="margin-bottom:12px">
+        <label class="check-item" style="font-weight:600">
+          <input type="radio" name="aCarrier" value="internal" ${isExt ? '' : 'checked'} onchange="window._assignCarrier('internal')" style="accent-color:var(--navy)">
+          <span>🏢 Xe nội bộ VTY</span>
+        </label>
+        <label class="check-item" style="font-weight:600">
+          <input type="radio" name="aCarrier" value="external" ${isExt ? 'checked' : ''} onchange="window._assignCarrier('external')" style="accent-color:var(--warn)">
+          <span>🤝 Đối tác ngoài</span>
+        </label>
+      </div>
+      <div id="aInternal" style="display:${isExt ? 'none' : 'block'}">
+        <div class="form-row">
+          <div><label>Tài xế</label>${window.searchSelectHTML('aDriver', '', 'Gõ tên / biển số tài xế…')}</div>
+          <div><label>Xe</label>${window.searchSelectHTML('aVehicle', '', 'Gõ biển số / loại xe…')}</div>
+        </div>
+      </div>
+      <div id="aExternal" style="display:${isExt ? 'block' : 'none'}">
+        <div class="form-row wide">
+          <label>Đối tác ngoài (đội xe / lái xe)</label>
+          ${window.searchSelectHTML('aPartner', '', 'Gõ tên đội xe / lái xe / biển số…')}
+        </div>
+        <div class="form-row">
+          <div><label>Chi phí thuê đối tác (₫)</label><input id="aPartnerCost" type="text" inputmode="numeric" placeholder="0" value="${o.partnerCost ? window.fmt(o.partnerCost) : ''}"></div>
+        </div>
+      </div>
+    `, {
+      footer: `<button class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+               <button class="btn btn-primary" onclick="window.submitAssignOrder('${code}')">💾 Lưu phân công</button>`,
+      width: '560px'
+    });
+
+    window.bindSearchSelect('aDriver', drvItems, () => {});
+    window.bindSearchSelect('aVehicle', vehItems, () => {});
+    window.bindSearchSelect('aPartner', partnerItems, () => {});
+    window.bindMoneyInput(document.getElementById('aPartnerCost'));
+    /* Prefill lựa chọn hiện tại */
+    const setSS = (id, it) => { if (!it) return; const el = document.getElementById(id); if (el) { el.value = it.label; el.dataset.val = String(it.id); } };
+    if (isExt) {
+      setSS('aPartner', partnerItems.find(x => x.id === (o.partnerId || o.driver)));
+    } else {
+      setSS('aDriver', drvItems.find(x => x.id === o.driver));
+      setSS('aVehicle', vehItems.find(x => x.label === o.vehicle));
+    }
+  };
+  window._assignCarrier = function(mode) {
+    document.getElementById('aInternal').style.display = mode === 'internal' ? 'block' : 'none';
+    document.getElementById('aExternal').style.display = mode === 'external' ? 'block' : 'none';
+  };
+  window.submitAssignOrder = function(code) {
+    const o = window.STORE.get('orders', []).find(x => x.code === code);
+    if (!o) return;
+    const drivers = window.STORE.get('drivers', window.DRIVERS || []);
+    const vehicles = window.STORE.get('vehicles', window.VEHICLES || []);
+    const partners = window.STORE.get('partners', window.PARTNERS || []);
+    const mode = document.querySelector('input[name="aCarrier"]:checked')?.value || 'internal';
+    const patch = {};
+    if (mode === 'internal') {
+      const drv = drivers.find(d => d.id === window.ssVal('#aDriver'));
+      const veh = vehicles.find(v => v.id === window.ssVal('#aVehicle'));
+      patch.external = false; patch.partnerId = null; patch.partnerName = null; patch.partnerContact = ''; patch.partnerCost = 0; patch.profit = null;
+      patch.driver = drv ? drv.id : '—';
+      patch.driverName = drv ? drv.name : '—';
+      patch.vehicle = veh ? veh.plate : '—';
+    } else {
+      const p = partners.find(x => x.id === window.ssVal('#aPartner'));
+      const cost = window.moneyVal('#aPartnerCost');
+      patch.external = true;
+      if (p) {
+        patch.partnerId = p.id; patch.partnerName = p.name; patch.partnerContact = p.contact || '';
+        patch.driver = p.id; patch.driverName = '🤝 ' + p.name; patch.vehicle = p.vehiclePlate || '(đối tác)';
+        patch.partnerCost = cost; patch.profit = (o.freight || 0) - cost;
+      } else {
+        patch.partnerId = null; patch.partnerName = null; patch.driver = '—'; patch.driverName = '—'; patch.vehicle = '—'; patch.partnerCost = cost;
+      }
+    }
+    window.STORE.update('orders', code, patch);
+    window.closeModal();
+    const who = patch.vehicle && patch.vehicle !== '—' ? patch.vehicle + (patch.driverName && patch.driverName !== '—' ? ' · ' + patch.driverName : '') : 'đã bỏ phân công';
+    window.toast('✓ ' + code + ' → ' + who, 'success');
+    render();
   };
 
   /* Khi chọn KH cũ → auto điền SĐT + địa chỉ gửi (tên đã nằm ở ô người gửi) */
