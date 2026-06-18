@@ -5,23 +5,27 @@
 
   function calcKPIs() {
     const orders = window.STORE.get('orders', window.ORDERS || []);
-    const customers = window.STORE.get('customers', window.CUSTOMERS || []);
-    const vehicles = window.STORE.get('vehicles', window.VEHICLES || []);
+    const due = window.orderRemainingDue || (o => Math.max(0, (o.freight || 0) + (o.transferFee || 0) - (o.paidAmount || 0)));
+    const idOf = window.buildOrderIdentity ? window.buildOrderIdentity(orders) : (o => (o.custName || '').toLowerCase());
+    const active = orders.filter(o => o.status !== 'cancelled');
 
-    const today = '17/05/2026';
-    const todayOrders = orders.filter(o => (o.date||'').startsWith(today));
-    const todayRevenue = todayOrders.reduce((s, o) => s + (o.freight||0), 0);
-    /* Doanh thu tháng = tổng của tất cả orders trong tháng — tạm dùng tổng order */
-    const monthRevenue = orders.filter(o => o.status === 'delivered' || o.status === 'reconciled' || o.status === 'transit')
-                              .reduce((s, o) => s + (o.freight||0), 0);
-    const unpaidCOD = orders.filter(o => o.cod > 0 && (o.status === 'transit' || o.status === 'pickup' || o.status === 'delivered'))
-                            .reduce((s, o) => s + (o.cod||0), 0);
-    const runningVehicles = vehicles.filter(v => v.status === 'running').length;
-    const totalVehicles = vehicles.length;
-    const newCust30d = customers.filter(c => c.group === 'Mới').length;
-    const debtors = customers.filter(c => c.debt > 0).length;
+    /* HÔM NAY — đọc ngày dd/mm/yyyy trong o.date, so với ngày thật */
+    const now = new Date();
+    const isToday = o => {
+      const m = String(o.date || '').match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+      return m && +m[1] === now.getDate() && +m[2] === now.getMonth() + 1 && +m[3] === now.getFullYear();
+    };
+    const todayOrders = active.filter(isToday);
+    const todayRevenue = todayOrders.reduce((s, o) => s + (o.freight || 0), 0);
+    const todayDue = todayOrders.reduce((s, o) => s + due(o), 0);
+    const todayCustomers = new Set(todayOrders.map(idOf).filter(k => k !== '__unknown__')).size;
 
-    return { todayOrders: todayOrders.length, todayRevenue, monthRevenue, unpaidCOD, runningVehicles, totalVehicles, newCust30d, debtors };
+    /* TỔNG CÔNG NỢ PHẢI THU (tất cả đơn chưa thu đủ) — khớp với module Công nợ */
+    const totalReceivable = active.reduce((s, o) => s + due(o), 0);
+    const debtorCount = new Set(active.filter(o => due(o) > 0).map(idOf)).size;
+    const totalCustomers = new Set(active.map(idOf).filter(k => k !== '__unknown__')).size;
+
+    return { todayOrders: todayOrders.length, totalOrders: active.length, todayRevenue, todayDue, todayCustomers, totalReceivable, debtorCount, totalCustomers };
   }
 
   function render() {
@@ -29,11 +33,11 @@
     const kpiEl = document.querySelector('.kpis');
     if (kpiEl) {
       kpiEl.innerHTML = `
-        <div class="kpi k-1"><div class="kpi-label">Đơn hôm nay</div><div class="kpi-value">${k.todayOrders}</div><div class="kpi-trend up">${k.todayOrders > 5 ? '↑ Đang sôi động' : '↓ Cần đẩy đơn'}</div><div class="kpi-icon">📦</div></div>
-        <div class="kpi k-2"><div class="kpi-label">Doanh thu tháng</div><div class="kpi-value">${window.fmtShort(k.monthRevenue)}</div><div class="kpi-trend up">↑ ${window.fmt(Math.round(k.monthRevenue/30))} ₫/ngày TB</div><div class="kpi-icon">💰</div></div>
-        <div class="kpi k-3"><div class="kpi-label">COD chưa thu</div><div class="kpi-value">${window.fmtShort(k.unpaidCOD)}</div><div class="kpi-trend down">${k.unpaidCOD > 10_000_000 ? '↓ Cần thu' : 'Bình thường'}</div><div class="kpi-icon">⚠️</div></div>
-        <div class="kpi k-4"><div class="kpi-label">Xe đang chạy</div><div class="kpi-value">${k.runningVehicles} / ${k.totalVehicles}</div><div class="kpi-trend">${k.totalVehicles - k.runningVehicles} xe rảnh</div><div class="kpi-icon">🚚</div></div>
-        <div class="kpi k-5"><div class="kpi-label">KH có công nợ</div><div class="kpi-value">${k.debtors}</div><div class="kpi-trend">${k.newCust30d} KH mới 30d</div><div class="kpi-icon">📉</div></div>
+        <div class="kpi k-1"><div class="kpi-label">Đơn hôm nay</div><div class="kpi-value">${k.todayOrders}</div><div class="kpi-trend">Tổng ${k.totalOrders} đơn</div><div class="kpi-icon">📦</div></div>
+        <div class="kpi k-2"><div class="kpi-label">Khách hôm nay</div><div class="kpi-value">${k.todayCustomers}</div><div class="kpi-trend up">${k.totalCustomers} khách tổng</div><div class="kpi-icon">👥</div></div>
+        <div class="kpi k-4"><div class="kpi-label">Doanh thu hôm nay</div><div class="kpi-value">${window.fmtShort(k.todayRevenue)}</div><div class="kpi-trend up">cước đơn phát sinh hôm nay</div><div class="kpi-icon">💰</div></div>
+        <div class="kpi k-3"><div class="kpi-label">Cần thu hôm nay</div><div class="kpi-value">${window.fmtShort(k.todayDue)}</div><div class="kpi-trend ${k.todayDue ? 'down' : ''}">còn phải thu từ đơn hôm nay</div><div class="kpi-icon">🧾</div></div>
+        <div class="kpi k-5"><div class="kpi-label">Tổng công nợ phải thu</div><div class="kpi-value">${window.fmtShort(k.totalReceivable)}</div><div class="kpi-trend down">${k.debtorCount} khách đang nợ</div><div class="kpi-icon">📉</div></div>
       `;
     }
 
