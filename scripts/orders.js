@@ -657,6 +657,33 @@
       if (confirm('Hủy đơn này?')) { cancelOrder(code); window.closeDrawer(); }
     };
 
+    /* Wire nút tab Tài xế / Xe: Gọi · Zalo · Đổi tài xế/xe */
+    (function () {
+      /* Lấy tên + SĐT người liên hệ của đơn (đối tác ngoài → lái xe đối tác; nội bộ → tài xế) */
+      let contactName = '', contactPhone = '';
+      if (o.external) {
+        const pn = window.STORE.get('partners', []).find(x => x.id === o.partnerId) || {};
+        contactName  = o.partnerContact || pn.contact || pn.name || o.partnerName || '';
+        contactPhone = pn.phone || '';
+      } else if (o.driverName && o.driverName !== '—') {
+        const dv = window.STORE.get('drivers', []).find(x => x.id === o.driver || x.name === o.driverName) || {};
+        contactName  = o.driverName;
+        contactPhone = dv.phone || '';
+      }
+      const tel = String(contactPhone).replace(/[^\d+]/g, '');
+      const vBtns = drawer.querySelectorAll('.tab-pane[data-pane="vehicle"] button');
+      if (vBtns[0]) vBtns[0].onclick = () => {
+        if (!tel) return window.toast(contactName ? 'Chưa có SĐT của ' + contactName : 'Đơn chưa phân công tài xế', 'warn');
+        window.location.href = 'tel:' + tel;
+      };
+      if (vBtns[1]) vBtns[1].onclick = () => {
+        if (!tel) return window.toast(contactName ? 'Chưa có SĐT của ' + contactName : 'Đơn chưa phân công tài xế', 'warn');
+        window.open('https://zalo.me/' + tel, '_blank');
+        window.toast('Mở Zalo ' + (contactName || tel), 'info');
+      };
+      if (vBtns[2]) vBtns[2].onclick = () => { window.closeDrawer(); window.openCreateOrder(o); };
+    })();
+
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelector('.tab[data-tab="info"]')?.classList.add('active');
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
