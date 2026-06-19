@@ -166,7 +166,7 @@
         const act = btn.dataset.act;
         if (act === 'next') advanceStatus(code);
         else if (act === 'assign') window.openAssignOrder(code);
-        else if (act === 'print') window.toast('In phiếu ' + code, 'info');
+        else if (act === 'print') window.printDeliveryNote(orders.find(x => x.code === code));
         else if (act === 'edit') window.openCreateOrder(orders.find(x => x.code === code));
         else if (act === 'cancel') cancelOrder(code);
       };
@@ -1376,80 +1376,119 @@
   window.printDeliveryNote = function(o) {
     if (!o) return;
     const company = window.STORE.get('companyInfo', null) || {
-      name: 'Công ty TNHH Vạn Thiên Ý', shortName: 'VTY Logistics',
-      address: 'Số 88 Trần Duy Hưng, Cầu Giấy, Hà Nội',
-      tax: '0109876543', hotline: '0903 111 222', email: 'contact@vtylogistics.vn',
+      name: 'CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ',
+      name2: 'VẠN THIÊN Ý - LOGISTICS',
+      address: 'Trụ sở chính: 754/42 Tân Kỳ Tân Quý, Phường Bình Hưng Hoà, Tp Hồ Chí Minh',
+      hotline: 'Số điện thoại: Mr. Luân 0912887672',
+      city: 'Hồ Chí Minh',
     };
     const items = Array.isArray(o.items) && o.items.length ? o.items
-      : [{ desc: o.goods || 'Hàng hóa', unit: o.unit || 'Kiện', qty: o.qty || 1, weight: o.weight || 0, amount: o.freight || 0 }];
-    const itemRows = items.map((it, i) => `<tr>
+      : [{ desc: o.goods || 'Hàng hóa', unit: o.unit || 'Kiện', qty: o.qty || 1, weight: o.weight || 0, price: 0, amount: o.freight || 0 }];
+    const itemRows = items.map((it, i) => {
+      const donGia = (it.price && it.price > 0) ? it.price : (it.amount || 0);
+      return `<tr>
         <td style="text-align:center">${i + 1}</td>
         <td>${it.desc || '—'}</td>
         <td style="text-align:center">${(it.unit || '').toLowerCase()}</td>
-        <td style="text-align:center">${it.qty || 0}</td>
-        <td style="text-align:center">${it.weight || 0} kg</td>
+        <td style="text-align:center">${it.weight ? window.fmt(it.weight) : (it.qty || 0)}</td>
+        <td class="num">${window.fmt(donGia)}</td>
         <td class="num">${window.fmt(it.amount || 0)}</td>
-      </tr>`).join('');
-    const st = (STATUS[o.status] && STATUS[o.status].label) || o.status;
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Phiếu giao hàng ${o.code}</title>
+      </tr>`;
+    }).join('');
+    /* Hàng đệm để bảng đủ cao như mẫu (tối thiểu 3 dòng hàng) */
+    const padRows = Math.max(0, 3 - items.length);
+    const emptyRows = Array.from({ length: padRows }, () => `<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('');
+
+    const lastMile = (o.lastMileMode === 'delivery') ? (o.lastMileFee || 0) : 0;
+    const transfer = (o.transferFee || 0) + lastMile;
+    const goodsValue = o.goodsValue || 0;
+    const totalPay = (o.freight || 0) + transfer;
+    const sumRow = (label, val, strong) =>
+      `<tr><td></td><td colspan="4" class="sumlab"${strong ? ' style="font-weight:700"' : ''}>${label}</td><td class="num"${strong ? ' style="font-weight:700"' : ''}>${val ? window.fmt(val) : ''}</td></tr>`;
+
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const recv = [o.receiverName, o.receiverPhone].filter(Boolean).join(' ');
+    const plate = (o.vehicle && o.vehicle !== '—' && o.vehicle !== '(đối tác)') ? o.vehicle : '';
+    const who = o.external ? (o.partnerContact || o.partnerName || '') : (o.driverName && o.driverName !== '—' ? o.driverName : '');
+    const tenXe = [plate, who].filter(Boolean).join(' · ');
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Phiếu giao nhận ${o.code}</title>
       <style>
-        body{font-family:'Times New Roman',serif;max-width:820px;margin:0 auto;padding:28px;color:#000;font-size:13px;line-height:1.5}
-        .hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #C8102E;padding-bottom:10px}
-        .hd .co{font-weight:700;color:#1C2D5A;font-size:15px}
-        .hd .co small{display:block;font-weight:400;color:#555;font-size:11.5px;margin-top:2px}
-        h1{text-align:center;color:#C8102E;font-size:22px;margin:16px 0 2px;letter-spacing:1px}
-        .sub{text-align:center;color:#555;font-size:12px;margin-bottom:14px}
-        .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
-        .box{border:1px solid #ccc;border-radius:6px;padding:10px}
-        .box h3{margin:0 0 6px;font-size:13px;color:#1C2D5A;text-transform:uppercase}
-        .row{display:flex;gap:8px;margin:2px 0}.row .lab{width:90px;color:#555}
-        table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12.5px}
-        th{background:#1C2D5A;color:#fff;padding:7px;border:1px solid #1C2D5A;font-size:11.5px;text-transform:uppercase}
-        td{padding:7px;border:1px solid #ccc}.num{text-align:right;font-variant-numeric:tabular-nums}
-        .totals{display:flex;justify-content:flex-end;gap:24px;margin-top:6px;font-size:13px}
-        .totals b{color:#C8102E}
-        .sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-top:48px;text-align:center;font-size:12.5px}
-        .sign .role{font-weight:700;text-transform:uppercase}.sign .ghi{font-style:italic;font-size:11px;color:#666;margin-top:3px}
-        @media print{body{padding:14px}.noprint{display:none}}
+        @page{size:A5 portrait;margin:8mm}
+        *{box-sizing:border-box}
+        body{font-family:'Times New Roman',serif;width:132mm;margin:0 auto;padding:0;color:#000;font-size:11px;line-height:1.4}
+        .head{position:relative;text-align:center;min-height:48px;margin-bottom:2px}
+        .head .logo{position:absolute;left:0;top:2px;width:62px;height:42px;border:1.5px solid #C8102E;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+        .head .logo b{color:#C8102E;font-size:15px;letter-spacing:1px}
+        .head .logo span{color:#1C2D5A;font-size:6.5px;font-weight:700;margin-top:1px}
+        .head .coname{font-weight:700;font-size:12px}
+        .head .coname.big{font-size:13.5px;letter-spacing:0.3px}
+        .head .coaddr{font-size:9.5px;text-align:left;padding-left:70px;line-height:1.35}
+        .title{text-align:center;font-weight:700;font-size:14px;margin:6px 0 0;letter-spacing:0.5px}
+        .sohd{text-align:center;font-size:10px;margin-bottom:6px}
+        table.info{width:100%;border-collapse:collapse;margin-bottom:4px}
+        table.info td{padding:1.5px 0;vertical-align:top}
+        table.info .k{width:92px;font-weight:700;white-space:nowrap}
+        table.info .v{font-weight:700}
+        table.goods{width:100%;border-collapse:collapse;margin-top:2px}
+        table.goods th{border:1px solid #000;padding:3px 4px;font-size:9.5px;text-transform:uppercase;text-align:center;font-weight:700}
+        table.goods td{border:1px solid #000;padding:3px 4px;font-size:10.5px}
+        .num{text-align:right;font-variant-numeric:tabular-nums}
+        .sumlab{text-align:left}
+        .date{text-align:center;font-style:italic;font-size:10.5px;border:1px solid #000;width:62%;margin:8px 0 8px auto;padding:6px 8px}
+        .note{font-size:10px;margin:4px 0 2px}.note i{font-weight:700}
+        .sign{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;text-align:center}
+        .sign .role{font-weight:700;text-transform:uppercase;font-size:10.5px}
+        .sign .ghi{font-style:italic;font-size:9px;color:#333;margin-top:2px}
+        .sign .sp{height:46px}
+        @media print{.noprint{display:none}}
+        @media screen{body{background:#fff;box-shadow:0 0 0 1px #ddd;padding:10mm 8mm;margin:16px auto}}
       </style></head><body>
-      <div class="hd">
-        <div class="co">${company.name}<small>${company.address} · ĐT: ${company.hotline} · MST: ${company.tax}</small></div>
-        <div style="text-align:right;font-size:11.5px;color:#555">Ngày in: ${new Date().toLocaleString('vi-VN')}</div>
+      <div class="head">
+        <div class="logo"><b>TY</b><span>VẠN THIÊN Ý</span></div>
+        <div class="coname">${company.name}</div>
+        <div class="coname big">${company.name2 || ''}</div>
+        <div class="coaddr">${company.address}</div>
+        <div class="coaddr">${company.hotline}</div>
       </div>
-      <h1>PHIẾU GIAO HÀNG</h1>
-      <div class="sub">Số đơn: <b>${o.code}</b> · Ngày tạo: ${o.date || ''} · Trạng thái: ${st}</div>
-      <div class="grid">
-        <div class="box"><h3>Bên gửi</h3>
-          <div class="row"><div class="lab">Tên:</div><div>${o.senderName || o.custName || '—'}</div></div>
-          <div class="row"><div class="lab">SĐT:</div><div>${o.senderPhone || '—'}</div></div>
-          <div class="row"><div class="lab">Lấy tại:</div><div>${o.pickup || '—'}</div></div>
-        </div>
-        <div class="box"><h3>Bên nhận</h3>
-          <div class="row"><div class="lab">Tên:</div><div>${o.receiverName || '—'}</div></div>
-          <div class="row"><div class="lab">SĐT:</div><div>${o.receiverPhone || '—'}</div></div>
-          <div class="row"><div class="lab">Giao tới:</div><div>${o.drop || '—'}</div></div>
-        </div>
-      </div>
-      <table>
-        <thead><tr><th style="width:36px">STT</th><th>Tên hàng</th><th style="width:60px">ĐVT</th><th style="width:50px">SL</th><th style="width:70px">Khối lượng</th><th style="width:110px">Thành tiền</th></tr></thead>
-        <tbody>${itemRows}</tbody>
+      <div class="title">HOÁ ĐƠN GIAO NHẬN HÀNG HOÁ</div>
+      <div class="sohd">Số HĐ: <b>${o.code}</b></div>
+      <table class="info">
+        <tr><td class="k">Khách hàng gửi:</td><td class="v">${o.senderName || o.custName || ''}</td></tr>
+        <tr><td class="k">Địa chỉ:</td><td class="v">${o.pickup || o.senderAddress || ''}</td></tr>
+        <tr><td class="k">Khách nhận:</td><td class="v">${recv || ''}</td></tr>
+        <tr><td class="k">Nơi trả:</td><td class="v">${o.drop || ''}</td></tr>
+        <tr><td class="k">Tên xe:</td><td class="v">${tenXe}</td></tr>
       </table>
-      <div class="totals">
-        <div>Cước vận chuyển: <b>${window.fmtVND(o.freight || 0)}</b></div>
-        <div>Thu hộ (COD): <b>${window.fmtVND(o.cod || 0)}</b></div>
-        <div>Hình thức TT: <b>${o.payBy || '—'}</b></div>
-      </div>
+      <table class="goods">
+        <thead><tr>
+          <th style="width:8%">STT</th><th>Tên hàng hoá</th><th style="width:10%">ĐVT</th>
+          <th style="width:12%">K.L</th><th style="width:20%">Đơn giá</th><th style="width:22%">Thành tiền</th>
+        </tr></thead>
+        <tbody>
+          ${itemRows}
+          ${emptyRows}
+          ${sumRow('Tổng cước', o.freight || 0)}
+          ${sumRow('Tiền hàng (giá trị hàng hoá)', goodsValue)}
+          ${sumRow('Số tiền đã thanh toán', o.paidAmount || 0)}
+          ${sumRow('Cước trung chuyển tận nơi', transfer)}
+          ${sumRow('Tổng tiền phải thanh toán', totalPay, true)}
+        </tbody>
+      </table>
+      <div class="date">${company.city || 'Hồ Chí Minh'}, ngày ${dd} tháng ${mm} năm ${now.getFullYear()}</div>
+      <div class="note"><i>Lưu ý:</i> Quý khách kiểm tra số lượng hàng hoá khi nhận hàng, nếu có vấn đề gì liên quan đến hàng hoá quý khách vui lòng liên hệ Mr Luân kịp thời xử lý.</div>
       <div class="sign">
-        <div><div class="role">Người gửi</div><div class="ghi">(Ký, ghi rõ họ tên)</div></div>
-        <div><div class="role">Tài xế giao</div><div class="ghi">${o.driverName || ''}</div></div>
-        <div><div class="role">Người nhận</div><div class="ghi">(Ký, ghi rõ họ tên)</div></div>
+        <div><div class="role">Người giao hàng</div><div class="sp"></div></div>
+        <div><div class="role">Người nhận hàng</div><div class="ghi">(Đã nhận đủ hàng, hàng không hư hỏng móp méo)</div></div>
       </div>
-      <div class="noprint" style="margin-top:26px;display:flex;gap:10px;justify-content:center;border-top:1px solid #ccc;padding-top:16px">
-        <button onclick="window.print()" style="background:#C8102E;color:#fff;border:none;padding:9px 22px;border-radius:8px;font-weight:700;cursor:pointer">🖨 In phiếu</button>
+      <div class="noprint" style="margin-top:16px;display:flex;gap:10px;justify-content:center;border-top:1px solid #ccc;padding-top:12px">
+        <button onclick="window.print()" style="background:#C8102E;color:#fff;border:none;padding:9px 22px;border-radius:8px;font-weight:700;cursor:pointer">🖨 In phiếu (A5)</button>
         <button onclick="window.close()" style="background:#fff;color:#1C2D5A;border:1px solid #1C2D5A;padding:9px 22px;border-radius:8px;cursor:pointer">Đóng</button>
       </div>
     </body></html>`;
-    const w = window.open('', '_blank', 'width=900,height=800');
+    const w = window.open('', '_blank', 'width=620,height=880');
     w.document.write(html);
     w.document.close();
   };
