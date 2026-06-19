@@ -1392,9 +1392,8 @@
         <td class="num">${window.fmt(it.amount || 0)}</td>
       </tr>`;
     }).join('');
-    /* Hàng đệm để bảng đủ cao như mẫu (tối thiểu 3 dòng hàng) */
-    const padRows = Math.max(0, 4 - items.length);
-    const emptyRows = Array.from({ length: padRows }, () => `<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('');
+    /* Không đệm dòng trống — chỉ in các dòng hàng thật */
+    const emptyRows = '';
 
     const lastMile = (o.lastMileMode === 'delivery') ? (o.lastMileFee || 0) : 0;
     const transfer = (o.transferFee || 0) + lastMile;
@@ -1417,7 +1416,7 @@
         *{box-sizing:border-box}
         html,body{margin:0;padding:0}
         body{font-family:'Times New Roman',serif;color:#000;font-size:13px;line-height:1.45}
-        .sheet{width:130mm;min-height:192mm;margin:0 auto;display:flex;flex-direction:column}
+        .sheet{width:130mm;margin:0 auto;display:flex;flex-direction:column}
         .head{position:relative;text-align:center;min-height:58px;margin-bottom:3px;border-bottom:2px solid #1C2D5A;padding-bottom:6px}
         .head .logo{position:absolute;left:0;top:0;width:100px;height:auto}
         .head .coname{font-weight:700;font-size:14px}
@@ -1434,7 +1433,7 @@
         table.goods td{border:1px solid #000;padding:7px 6px;font-size:13px;height:22px}
         .num{text-align:right;font-variant-numeric:tabular-nums}
         .sumlab{text-align:left;font-size:13px}
-        .filler{flex:1 1 auto;min-height:8mm}
+        .filler{height:14mm}
         .date{text-align:center;font-style:italic;font-size:12.5px;border:1px solid #000;width:60%;margin:0 0 8px auto;padding:8px 10px}
         .note{font-size:11.5px;margin:2px 0 4px;line-height:1.5}.note i{font-weight:700}
         .sign{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;text-align:center}
@@ -1443,7 +1442,7 @@
         .sign .sp{height:62px}
         .actions{margin-top:14px;display:flex;gap:10px;justify-content:center;border-top:1px solid #ccc;padding-top:12px}
         .actions button{font-size:14px}
-        @media print{.noprint{display:none!important}body{background:#fff}.sheet{min-height:186mm;padding:0}}
+        @media print{.noprint{display:none!important}body{background:#fff}.sheet{padding:0}}
         @media screen{body{background:#e9e9ee;padding:18px 0}.sheet{background:#fff;box-shadow:0 1px 8px rgba(0,0,0,.18);padding:9mm}}
       </style></head><body>
       <div class="sheet">
