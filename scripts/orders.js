@@ -1383,7 +1383,7 @@
       : [{ desc: o.goods || 'Hàng hóa', unit: o.unit || 'Kiện', qty: o.qty || 1, weight: o.weight || 0, price: 0, amount: o.freight || 0 }];
     const itemRows = items.map((it, i) => {
       const donGia = (it.price && it.price > 0) ? it.price : (it.amount || 0);
-      return `<tr>
+      return `<tr class="gi">
         <td style="text-align:center">${i + 1}</td>
         <td>${it.desc || '—'}</td>
         <td style="text-align:center">${(it.unit || '').toLowerCase()}</td>
@@ -1412,38 +1412,38 @@
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Phiếu giao nhận ${o.code}</title>
       <style>
-        @page{size:A5 portrait;margin:9mm}
+        @page{size:A5 portrait;margin:8mm}
         *{box-sizing:border-box}
         html,body{margin:0;padding:0}
-        body{font-family:'Times New Roman',serif;color:#000;font-size:13px;line-height:1.45}
-        .sheet{width:130mm;margin:0 auto;display:flex;flex-direction:column}
-        .head{position:relative;text-align:center;min-height:58px;margin-bottom:3px;border-bottom:2px solid #1C2D5A;padding-bottom:6px}
-        .head .logo{position:absolute;left:0;top:0;width:100px;height:auto}
-        .head .coname{font-weight:700;font-size:14px}
-        .head .coname.big{font-size:16px;letter-spacing:0.3px}
-        .head .coaddr{font-size:11.5px;text-align:left;padding-left:108px;line-height:1.45}
-        .title{text-align:center;font-weight:700;font-size:18px;margin:8px 0 1px;letter-spacing:0.5px}
-        .sohd{text-align:center;font-size:12px;margin-bottom:8px}
-        table.info{width:100%;border-collapse:collapse;margin-bottom:6px}
-        table.info td{padding:3px 0;vertical-align:top;font-size:13px}
-        table.info .k{width:108px;font-weight:700;white-space:nowrap}
+        body{font-family:'Times New Roman',serif;color:#000;font-size:12px;line-height:1.35}
+        .sheet{width:130mm;margin:0 auto}
+        .head{position:relative;text-align:center;min-height:54px;margin-bottom:2px;border-bottom:2px solid #1C2D5A;padding-bottom:4px}
+        .head .logo{position:absolute;left:0;top:0;width:92px;height:auto}
+        .head .coname{font-weight:700;font-size:13px;line-height:1.25}
+        .head .coname.big{font-size:14px;letter-spacing:0.3px}
+        .head .coaddr{font-size:10.5px;text-align:left;padding-left:100px;line-height:1.35}
+        .title{text-align:center;font-weight:700;font-size:15px;margin:6px 0 0;letter-spacing:0.5px}
+        .sohd{text-align:center;font-size:11px;margin-bottom:6px}
+        table.info{width:100%;border-collapse:collapse;margin-bottom:4px}
+        table.info td{padding:2px 0;vertical-align:top;font-size:12px}
+        table.info .k{width:104px;font-weight:700;white-space:nowrap}
         table.info .v{font-weight:700}
-        table.goods{width:100%;border-collapse:collapse;margin-top:2px}
-        table.goods th{border:1px solid #000;padding:6px 5px;font-size:11.5px;text-transform:uppercase;text-align:center;font-weight:700}
-        table.goods td{border:1px solid #000;padding:7px 6px;font-size:13px;height:22px}
+        table.goods{width:100%;border-collapse:collapse;margin-top:1px}
+        table.goods th{border:1px solid #000;padding:5px 5px;font-size:11px;text-transform:uppercase;text-align:center;font-weight:700}
+        table.goods td{border:1px solid #000;padding:5px 6px;font-size:12px}
+        table.goods tr.gi td{height:52px;vertical-align:middle}
         .num{text-align:right;font-variant-numeric:tabular-nums}
-        .sumlab{text-align:left;font-size:13px}
-        .filler{height:14mm}
-        .date{text-align:center;font-style:italic;font-size:12.5px;border:1px solid #000;width:60%;margin:0 0 8px auto;padding:8px 10px}
-        .note{font-size:11.5px;margin:2px 0 4px;line-height:1.5}.note i{font-weight:700}
-        .sign{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;text-align:center}
-        .sign .role{font-weight:700;text-transform:uppercase;font-size:12.5px}
-        .sign .ghi{font-style:italic;font-size:10.5px;color:#333;margin-top:3px}
-        .sign .sp{height:62px}
+        .sumlab{text-align:left;font-size:12px}
+        .date{text-align:center;font-style:italic;font-size:11.5px;border:1px solid #000;width:58%;margin:12px 0 6px auto;padding:6px 8px}
+        .note{font-size:11px;margin:2px 0 4px;line-height:1.4}.note i{font-weight:700}
+        .sign{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;text-align:center}
+        .sign .role{font-weight:700;text-transform:uppercase;font-size:12px}
+        .sign .ghi{font-style:italic;font-size:10px;color:#333;margin-top:2px}
+        .sign .sp{height:48px}
         .actions{margin-top:14px;display:flex;gap:10px;justify-content:center;border-top:1px solid #ccc;padding-top:12px}
         .actions button{font-size:14px}
         @media print{.noprint{display:none!important}body{background:#fff}.sheet{padding:0}}
-        @media screen{body{background:#e9e9ee;padding:18px 0}.sheet{background:#fff;box-shadow:0 1px 8px rgba(0,0,0,.18);padding:9mm}}
+        @media screen{body{background:#e9e9ee;padding:18px 0}.sheet{background:#fff;box-shadow:0 1px 8px rgba(0,0,0,.18);padding:8mm}}
       </style></head><body>
       <div class="sheet">
         <div class="head">
@@ -1477,7 +1477,6 @@
             ${sumRow('Tổng tiền phải thanh toán', totalPay, true)}
           </tbody>
         </table>
-        <div class="filler"></div>
         <div class="date">${company.city || 'Hồ Chí Minh'}, ngày ${dd} tháng ${mm} năm ${now.getFullYear()}</div>
         <div class="note"><i>Lưu ý:</i> Quý khách kiểm tra số lượng hàng hoá khi nhận hàng, nếu có vấn đề gì liên quan đến hàng hoá quý khách vui lòng liên hệ Mr Luân kịp thời xử lý.</div>
         <div class="sign">
