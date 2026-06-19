@@ -1375,13 +1375,15 @@
   /* In phiếu giao hàng từ đơn */
   window.printDeliveryNote = function(o) {
     if (!o) return;
-    const company = window.STORE.get('companyInfo', null) || {
+    /* Thông tin công ty cố định trên letterhead (không phụ thuộc dữ liệu cũ trong STORE) */
+    const company = {
       name: 'CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ',
       name2: 'VẠN THIÊN Ý - LOGISTICS',
       address: 'Trụ sở chính: 754/42 Tân Kỳ Tân Quý, Phường Bình Hưng Hoà, Tp Hồ Chí Minh',
       hotline: 'Số điện thoại: Mr. Luân 0912887672',
       city: 'Hồ Chí Minh',
     };
+    const logoUrl = location.origin + '/assets/logo-vty.png';
     const items = Array.isArray(o.items) && o.items.length ? o.items
       : [{ desc: o.goods || 'Hàng hóa', unit: o.unit || 'Kiện', qty: o.qty || 1, weight: o.weight || 0, price: 0, amount: o.freight || 0 }];
     const itemRows = items.map((it, i) => {
@@ -1419,13 +1421,11 @@
         @page{size:A5 portrait;margin:8mm}
         *{box-sizing:border-box}
         body{font-family:'Times New Roman',serif;width:132mm;margin:0 auto;padding:0;color:#000;font-size:11px;line-height:1.4}
-        .head{position:relative;text-align:center;min-height:48px;margin-bottom:2px}
-        .head .logo{position:absolute;left:0;top:2px;width:62px;height:42px;border:1.5px solid #C8102E;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
-        .head .logo b{color:#C8102E;font-size:15px;letter-spacing:1px}
-        .head .logo span{color:#1C2D5A;font-size:6.5px;font-weight:700;margin-top:1px}
-        .head .coname{font-weight:700;font-size:12px}
-        .head .coname.big{font-size:13.5px;letter-spacing:0.3px}
-        .head .coaddr{font-size:9.5px;text-align:left;padding-left:70px;line-height:1.35}
+        .head{position:relative;text-align:center;min-height:52px;margin-bottom:2px;border-bottom:1.5px solid #1C2D5A;padding-bottom:5px}
+        .head .logo{position:absolute;left:0;top:0;width:84px;height:auto}
+        .head .coname{font-weight:700;font-size:12.5px}
+        .head .coname.big{font-size:14px;letter-spacing:0.3px}
+        .head .coaddr{font-size:10px;text-align:left;padding-left:92px;line-height:1.4}
         .title{text-align:center;font-weight:700;font-size:14px;margin:6px 0 0;letter-spacing:0.5px}
         .sohd{text-align:center;font-size:10px;margin-bottom:6px}
         table.info{width:100%;border-collapse:collapse;margin-bottom:4px}
@@ -1447,7 +1447,7 @@
         @media screen{body{background:#fff;box-shadow:0 0 0 1px #ddd;padding:10mm 8mm;margin:16px auto}}
       </style></head><body>
       <div class="head">
-        <div class="logo"><b>TY</b><span>VẠN THIÊN Ý</span></div>
+        <img class="logo" src="${logoUrl}" alt="VTY" onerror="this.style.display='none'">
         <div class="coname">${company.name}</div>
         <div class="coname big">${company.name2 || ''}</div>
         <div class="coaddr">${company.address}</div>
