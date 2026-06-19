@@ -696,7 +696,7 @@
   /* === State bảng hàng hóa nhiều dòng === */
   let orderItems = [];
   let editingOrderCode = null; /* != null → đang SỬA đơn này (thay vì tạo mới) */
-  function blankItem() { return { desc:'', unit:'Thùng', qty:1, weight:0, price:0 }; }
+  function blankItem() { return { desc:'', unit:'Thùng', qty:1, weight:0, amount:0 }; }
 
   function itemsTableHtml() {
     const unitOptHtml = (sel) => window.MD.get('units')
@@ -709,8 +709,7 @@
         <td><select class="it-unit" style="${inS}">${unitOptHtml(it.unit)}</select></td>
         <td><input class="it-qty" type="number" min="0" value="${it.qty}" style="${inS};text-align:right"></td>
         <td><input class="it-weight" type="number" min="0" value="${it.weight}" style="${inS};text-align:right"></td>
-        <td><input class="it-price" type="text" inputmode="numeric" value="${window.fmt(it.price)}" style="${inS};text-align:right"></td>
-        <td class="num it-amount" style="font-weight:600;text-align:right;padding-right:6px">${window.fmt(it.qty*it.price)}</td>
+        <td><input class="it-amount" type="text" inputmode="numeric" value="${window.fmt(it.amount||0)}" style="${inS};text-align:right;font-weight:600"></td>
         <td style="text-align:center"><button type="button" class="btn btn-sm btn-ghost" onclick="window.orderDelItem(${i})" style="color:var(--danger);padding:2px 6px" ${orderItems.length<=1?'disabled':''}>✕</button></td>
       </tr>`).join('');
     return `
@@ -723,7 +722,7 @@
       <table class="items-tbl" style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px">
         <colgroup>
           <col style="width:34px"><col><col style="width:96px"><col style="width:74px">
-          <col style="width:84px"><col style="width:120px"><col style="width:118px"><col style="width:36px">
+          <col style="width:84px"><col style="width:140px"><col style="width:36px">
         </colgroup>
         <thead><tr style="background:#F3F4F6;color:var(--muted);font-size:11px;text-transform:uppercase">
           <th>STT</th>
@@ -731,7 +730,6 @@
           <th>ĐVT</th>
           <th style="text-align:right">SL</th>
           <th style="text-align:right">TL kg</th>
-          <th style="text-align:right">Đơn giá</th>
           <th style="text-align:right">Thành tiền</th>
           <th></th>
         </tr></thead>
@@ -748,9 +746,9 @@
       tr.querySelector('.it-unit').onchange  = e => { orderItems[i].unit = e.target.value; };
       tr.querySelector('.it-qty').oninput    = e => { orderItems[i].qty = +e.target.value||0; window.orderRecalc(); };
       tr.querySelector('.it-weight').oninput = e => { orderItems[i].weight = +e.target.value||0; window.orderRecalc(); };
-      tr.querySelector('.it-price').oninput  = e => {
+      tr.querySelector('.it-amount').oninput = e => {
         const n = window.parseMoney(e.target.value);
-        orderItems[i].price = n;
+        orderItems[i].amount = n;
         e.target.value = n ? n.toLocaleString('vi-VN') : '';
         window.orderRecalc();
       };
@@ -772,11 +770,8 @@
   };
   window.orderRecalc = function() {
     let totAmount = 0, totQty = 0, totWeight = 0;
-    orderItems.forEach((it, i) => {
-      const amt = (it.qty||0) * (it.price||0);
-      totAmount += amt; totQty += (it.qty||0); totWeight += (it.weight||0);
-      const cell = document.querySelector(`#itemsBody tr[data-i="${i}"] .it-amount`);
-      if (cell) cell.textContent = window.fmt(amt);
+    orderItems.forEach((it) => {
+      totAmount += (it.amount||0); totQty += (it.qty||0); totWeight += (it.weight||0);
     });
     const sum = document.getElementById('itemsTotal');
     if (sum) sum.textContent = window.fmt(totAmount) + ' ₫';
@@ -1197,8 +1192,8 @@
     const freight = window.moneyVal('#oFreight');
     /* Lọc các dòng hàng có nhập diễn giải */
     const items = orderItems
-      .filter(it => (it.desc || '').trim() || it.qty > 1 || it.price > 0)
-      .map(it => ({ desc: (it.desc||'').trim(), unit: it.unit, qty: +it.qty||0, weight: +it.weight||0, price: +it.price||0, amount: (+it.qty||0)*(+it.price||0) }));
+      .filter(it => (it.desc || '').trim() || it.qty > 1 || (+it.amount||0) > 0)
+      .map(it => ({ desc: (it.desc||'').trim(), unit: it.unit, qty: +it.qty||0, weight: +it.weight||0, amount: +it.amount||0 }));
 
     if (!custText) { window.toast('Nhập tên khách hàng', 'warn'); return; }
     if (!window.formVal('#oSenderPhone')) { window.toast('Nhập SĐT khách hàng (bắt buộc để tính công nợ chính xác)', 'warn'); return; }
@@ -1398,7 +1393,7 @@
       </tr>`;
     }).join('');
     /* Hàng đệm để bảng đủ cao như mẫu (tối thiểu 3 dòng hàng) */
-    const padRows = Math.max(0, 3 - items.length);
+    const padRows = Math.max(0, 4 - items.length);
     const emptyRows = Array.from({ length: padRows }, () => `<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('');
 
     const lastMile = (o.lastMileMode === 'delivery') ? (o.lastMileFee || 0) : 0;
@@ -1418,77 +1413,85 @@
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Phiếu giao nhận ${o.code}</title>
       <style>
-        @page{size:A5 portrait;margin:8mm}
+        @page{size:A5 portrait;margin:9mm}
         *{box-sizing:border-box}
-        body{font-family:'Times New Roman',serif;width:132mm;margin:0 auto;padding:0;color:#000;font-size:11px;line-height:1.4}
-        .head{position:relative;text-align:center;min-height:52px;margin-bottom:2px;border-bottom:1.5px solid #1C2D5A;padding-bottom:5px}
-        .head .logo{position:absolute;left:0;top:0;width:84px;height:auto}
-        .head .coname{font-weight:700;font-size:12.5px}
-        .head .coname.big{font-size:14px;letter-spacing:0.3px}
-        .head .coaddr{font-size:10px;text-align:left;padding-left:92px;line-height:1.4}
-        .title{text-align:center;font-weight:700;font-size:14px;margin:6px 0 0;letter-spacing:0.5px}
-        .sohd{text-align:center;font-size:10px;margin-bottom:6px}
-        table.info{width:100%;border-collapse:collapse;margin-bottom:4px}
-        table.info td{padding:1.5px 0;vertical-align:top}
-        table.info .k{width:92px;font-weight:700;white-space:nowrap}
+        html,body{margin:0;padding:0}
+        body{font-family:'Times New Roman',serif;color:#000;font-size:13px;line-height:1.45}
+        .sheet{width:130mm;min-height:192mm;margin:0 auto;display:flex;flex-direction:column}
+        .head{position:relative;text-align:center;min-height:58px;margin-bottom:3px;border-bottom:2px solid #1C2D5A;padding-bottom:6px}
+        .head .logo{position:absolute;left:0;top:0;width:100px;height:auto}
+        .head .coname{font-weight:700;font-size:14px}
+        .head .coname.big{font-size:16px;letter-spacing:0.3px}
+        .head .coaddr{font-size:11.5px;text-align:left;padding-left:108px;line-height:1.45}
+        .title{text-align:center;font-weight:700;font-size:18px;margin:8px 0 1px;letter-spacing:0.5px}
+        .sohd{text-align:center;font-size:12px;margin-bottom:8px}
+        table.info{width:100%;border-collapse:collapse;margin-bottom:6px}
+        table.info td{padding:3px 0;vertical-align:top;font-size:13px}
+        table.info .k{width:108px;font-weight:700;white-space:nowrap}
         table.info .v{font-weight:700}
         table.goods{width:100%;border-collapse:collapse;margin-top:2px}
-        table.goods th{border:1px solid #000;padding:3px 4px;font-size:9.5px;text-transform:uppercase;text-align:center;font-weight:700}
-        table.goods td{border:1px solid #000;padding:3px 4px;font-size:10.5px}
+        table.goods th{border:1px solid #000;padding:6px 5px;font-size:11.5px;text-transform:uppercase;text-align:center;font-weight:700}
+        table.goods td{border:1px solid #000;padding:7px 6px;font-size:13px;height:22px}
         .num{text-align:right;font-variant-numeric:tabular-nums}
-        .sumlab{text-align:left}
-        .date{text-align:center;font-style:italic;font-size:10.5px;border:1px solid #000;width:62%;margin:8px 0 8px auto;padding:6px 8px}
-        .note{font-size:10px;margin:4px 0 2px}.note i{font-weight:700}
-        .sign{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;text-align:center}
-        .sign .role{font-weight:700;text-transform:uppercase;font-size:10.5px}
-        .sign .ghi{font-style:italic;font-size:9px;color:#333;margin-top:2px}
-        .sign .sp{height:46px}
-        @media print{.noprint{display:none}}
-        @media screen{body{background:#fff;box-shadow:0 0 0 1px #ddd;padding:10mm 8mm;margin:16px auto}}
+        .sumlab{text-align:left;font-size:13px}
+        .filler{flex:1 1 auto;min-height:8mm}
+        .date{text-align:center;font-style:italic;font-size:12.5px;border:1px solid #000;width:60%;margin:0 0 8px auto;padding:8px 10px}
+        .note{font-size:11.5px;margin:2px 0 4px;line-height:1.5}.note i{font-weight:700}
+        .sign{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;text-align:center}
+        .sign .role{font-weight:700;text-transform:uppercase;font-size:12.5px}
+        .sign .ghi{font-style:italic;font-size:10.5px;color:#333;margin-top:3px}
+        .sign .sp{height:62px}
+        .actions{margin-top:14px;display:flex;gap:10px;justify-content:center;border-top:1px solid #ccc;padding-top:12px}
+        .actions button{font-size:14px}
+        @media print{.noprint{display:none!important}body{background:#fff}.sheet{min-height:186mm;padding:0}}
+        @media screen{body{background:#e9e9ee;padding:18px 0}.sheet{background:#fff;box-shadow:0 1px 8px rgba(0,0,0,.18);padding:9mm}}
       </style></head><body>
-      <div class="head">
-        <img class="logo" src="${logoUrl}" alt="VTY" onerror="this.style.display='none'">
-        <div class="coname">${company.name}</div>
-        <div class="coname big">${company.name2 || ''}</div>
-        <div class="coaddr">${company.address}</div>
-        <div class="coaddr">${company.hotline}</div>
+      <div class="sheet">
+        <div class="head">
+          <img class="logo" src="${logoUrl}" alt="VTY" onerror="this.style.display='none'">
+          <div class="coname">${company.name}</div>
+          <div class="coname big">${company.name2 || ''}</div>
+          <div class="coaddr">${company.address}</div>
+          <div class="coaddr">${company.hotline}</div>
+        </div>
+        <div class="title">HOÁ ĐƠN GIAO NHẬN HÀNG HOÁ</div>
+        <div class="sohd">Số HĐ: <b>${o.code}</b></div>
+        <table class="info">
+          <tr><td class="k">Khách hàng gửi:</td><td class="v">${o.senderName || o.custName || ''}</td></tr>
+          <tr><td class="k">Địa chỉ:</td><td class="v">${o.pickup || o.senderAddress || ''}</td></tr>
+          <tr><td class="k">Khách nhận:</td><td class="v">${recv || ''}</td></tr>
+          <tr><td class="k">Nơi trả:</td><td class="v">${o.drop || ''}</td></tr>
+          <tr><td class="k">Tên xe:</td><td class="v">${tenXe}</td></tr>
+        </table>
+        <table class="goods">
+          <thead><tr>
+            <th style="width:8%">STT</th><th>Tên hàng hoá</th><th style="width:10%">ĐVT</th>
+            <th style="width:12%">K.L</th><th style="width:20%">Đơn giá</th><th style="width:22%">Thành tiền</th>
+          </tr></thead>
+          <tbody>
+            ${itemRows}
+            ${emptyRows}
+            ${sumRow('Tổng cước', o.freight || 0)}
+            ${sumRow('Tiền hàng (giá trị hàng hoá)', goodsValue)}
+            ${sumRow('Số tiền đã thanh toán', o.paidAmount || 0)}
+            ${sumRow('Cước trung chuyển tận nơi', transfer)}
+            ${sumRow('Tổng tiền phải thanh toán', totalPay, true)}
+          </tbody>
+        </table>
+        <div class="filler"></div>
+        <div class="date">${company.city || 'Hồ Chí Minh'}, ngày ${dd} tháng ${mm} năm ${now.getFullYear()}</div>
+        <div class="note"><i>Lưu ý:</i> Quý khách kiểm tra số lượng hàng hoá khi nhận hàng, nếu có vấn đề gì liên quan đến hàng hoá quý khách vui lòng liên hệ Mr Luân kịp thời xử lý.</div>
+        <div class="sign">
+          <div><div class="role">Người giao hàng</div><div class="sp"></div></div>
+          <div><div class="role">Người nhận hàng</div><div class="ghi">(Đã nhận đủ hàng, hàng không hư hỏng móp méo)</div></div>
+        </div>
       </div>
-      <div class="title">HOÁ ĐƠN GIAO NHẬN HÀNG HOÁ</div>
-      <div class="sohd">Số HĐ: <b>${o.code}</b></div>
-      <table class="info">
-        <tr><td class="k">Khách hàng gửi:</td><td class="v">${o.senderName || o.custName || ''}</td></tr>
-        <tr><td class="k">Địa chỉ:</td><td class="v">${o.pickup || o.senderAddress || ''}</td></tr>
-        <tr><td class="k">Khách nhận:</td><td class="v">${recv || ''}</td></tr>
-        <tr><td class="k">Nơi trả:</td><td class="v">${o.drop || ''}</td></tr>
-        <tr><td class="k">Tên xe:</td><td class="v">${tenXe}</td></tr>
-      </table>
-      <table class="goods">
-        <thead><tr>
-          <th style="width:8%">STT</th><th>Tên hàng hoá</th><th style="width:10%">ĐVT</th>
-          <th style="width:12%">K.L</th><th style="width:20%">Đơn giá</th><th style="width:22%">Thành tiền</th>
-        </tr></thead>
-        <tbody>
-          ${itemRows}
-          ${emptyRows}
-          ${sumRow('Tổng cước', o.freight || 0)}
-          ${sumRow('Tiền hàng (giá trị hàng hoá)', goodsValue)}
-          ${sumRow('Số tiền đã thanh toán', o.paidAmount || 0)}
-          ${sumRow('Cước trung chuyển tận nơi', transfer)}
-          ${sumRow('Tổng tiền phải thanh toán', totalPay, true)}
-        </tbody>
-      </table>
-      <div class="date">${company.city || 'Hồ Chí Minh'}, ngày ${dd} tháng ${mm} năm ${now.getFullYear()}</div>
-      <div class="note"><i>Lưu ý:</i> Quý khách kiểm tra số lượng hàng hoá khi nhận hàng, nếu có vấn đề gì liên quan đến hàng hoá quý khách vui lòng liên hệ Mr Luân kịp thời xử lý.</div>
-      <div class="sign">
-        <div><div class="role">Người giao hàng</div><div class="sp"></div></div>
-        <div><div class="role">Người nhận hàng</div><div class="ghi">(Đã nhận đủ hàng, hàng không hư hỏng móp méo)</div></div>
-      </div>
-      <div class="noprint" style="margin-top:16px;display:flex;gap:10px;justify-content:center;border-top:1px solid #ccc;padding-top:12px">
-        <button onclick="window.print()" style="background:#C8102E;color:#fff;border:none;padding:9px 22px;border-radius:8px;font-weight:700;cursor:pointer">🖨 In phiếu (A5)</button>
-        <button onclick="window.close()" style="background:#fff;color:#1C2D5A;border:1px solid #1C2D5A;padding:9px 22px;border-radius:8px;cursor:pointer">Đóng</button>
+      <div class="noprint actions">
+        <button onclick="window.print()" style="background:#C8102E;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-weight:700;cursor:pointer">🖨 In phiếu (A5)</button>
+        <button onclick="window.close()" style="background:#fff;color:#1C2D5A;border:1px solid #1C2D5A;padding:10px 24px;border-radius:8px;cursor:pointer">Đóng</button>
       </div>
     </body></html>`;
-    const w = window.open('', '_blank', 'width=620,height=880');
+    const w = window.open('', '_blank', 'width=640,height=900');
     w.document.write(html);
     w.document.close();
   };
