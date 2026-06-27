@@ -9,6 +9,13 @@
 <style>
   .aging{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
   @media (max-width:980px){.aging{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:680px){
+    .aging{display:flex;grid-template-columns:none;overflow-x:auto;gap:8px;
+           scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;padding-bottom:6px;margin-bottom:12px}
+    .aging::-webkit-scrollbar{height:0}
+    .aging-card{flex:0 0 46%;min-width:150px;scroll-snap-align:start;padding:10px 12px}
+    .aging-card .val{font-size:18px}
+  }
   .aging-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;border-left:4px solid var(--line)}
   .aging-card.b1{border-left-color:var(--ok)}
   .aging-card.b2{border-left-color:#3B82F6}

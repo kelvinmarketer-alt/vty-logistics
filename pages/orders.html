@@ -10,7 +10,12 @@
   /* Status pipeline */
   .pipeline{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px}
   @media (max-width:980px){.pipeline{grid-template-columns:repeat(3,1fr)}}
-  @media (max-width:560px){.pipeline{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:680px){
+    .pipeline{display:flex;grid-template-columns:none;overflow-x:auto;gap:8px;
+              scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;padding-bottom:6px;margin-bottom:12px}
+    .pipeline::-webkit-scrollbar{height:0}
+    .pipeline .pipe-card{flex:0 0 44%;min-width:140px;scroll-snap-align:start}
+  }
   .pipe-card{background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px 12px;cursor:pointer;border-left:4px solid transparent;transition:all 0.15s}
   .pipe-card:hover{transform:translateY(-1px);box-shadow:var(--shadow-sm)}
   .pipe-card.active{box-shadow:0 0 0 2px var(--navy)}
