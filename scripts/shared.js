@@ -165,6 +165,30 @@ window.chipsToSelect = function(chipsEl) {
   sel.selectedIndex = activeIdx;
 };
 
+/* Mobile: chuyển 1 thanh TAB điều hướng (container > các div tab có onclick) thành <select>.
+   Chọn option => click đúng tab (tái dùng switchPageTab/switchTab sẵn có). */
+window.tabsToSelect = function(containerEl) {
+  if (!containerEl) return;
+  containerEl.classList.add('cvt');
+  let sel = containerEl.previousElementSibling;
+  if (!sel || !sel.classList.contains('chip-select')) {
+    sel = document.createElement('select');
+    sel.className = 'chip-select';
+    containerEl.parentNode.insertBefore(sel, containerEl);
+    sel.addEventListener('change', () => {
+      const tab = containerEl.children[sel.selectedIndex];
+      if (tab) tab.click();
+    });
+  }
+  const tabs = [...containerEl.children];
+  let active = 0;
+  sel.innerHTML = tabs.map((t, i) => {
+    if (t.classList.contains('active')) active = i;
+    return `<option value="${i}">${t.textContent.trim().replace(/\s+/g, ' ')}</option>`;
+  }).join('');
+  sel.selectedIndex = active;
+};
+
 /* Trả về HTML cho logo — ưu tiên user-uploaded → assets/logo.png → inline SVG */
 window.brandLogo = function(size = 'compact', basePath = '../') {
   /* 1. Logo user upload qua Settings (lưu base64 trong STORE) */

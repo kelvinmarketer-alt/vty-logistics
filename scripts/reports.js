@@ -421,6 +421,7 @@
   };
 
   window.renderAppShell('reports', 'Báo cáo & Phân tích');
+  if (window.tabsToSelect) window.tabsToSelect(document.querySelector('.rpt-tabs'));
   renderChart();
   recalculate();
   renderCustomerPane();

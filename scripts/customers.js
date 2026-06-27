@@ -184,8 +184,8 @@
         : '';
       const phoneClean = (c.phone || '').replace(/\s/g,'');
       return `<tr data-id="${c.id}">
-        <td onclick="event.stopPropagation()"><input type="checkbox" class="row-chk" data-id="${c.id}" style="width:16px;height:16px;cursor:pointer"></td>
-        <td>
+        <td class="cardize-hide" onclick="event.stopPropagation()"><input type="checkbox" class="row-chk" data-id="${c.id}" style="width:16px;height:16px;cursor:pointer"></td>
+        <td class="cardize-head">
           <div class="cust-cell">
             <div class="cust-ava" style="background:${col}">${ava}</div>
             <div class="cust-info">
@@ -199,11 +199,11 @@
         <td class="hide-md">${c.province}</td>
         <td class="hide-md" style="font-size:12px;color:var(--muted)">${c.serviceLabel}</td>
         <td class="hide-md"><span class="staff-pill">${c.staffOwner}</span></td>
-        <td class="num">${c.orders}</td>
-        <td class="num">${window.fmt(c.revenue)}</td>
-        <td class="num debt-cell ${debtCls}">${debtVal}${overdueBadge}</td>
+        <td class="num" data-label="Số đơn">${c.orders}</td>
+        <td class="num" data-label="Doanh thu">${window.fmt(c.revenue)}</td>
+        <td class="num debt-cell ${debtCls}" data-label="Công nợ">${debtVal}${overdueBadge}</td>
         <td class="hide-md" style="font-size:12px;color:var(--muted)">${c.lastContact}</td>
-        <td onclick="event.stopPropagation()">
+        <td class="cardize-actions" onclick="event.stopPropagation()">
           <div class="row-actions">
             <button class="ra-zalo" title="Nhắn Zalo: ${c.phone}" data-act="zalo" data-id="${c.id}"><span style="font-size:13px;font-weight:700">Z</span></button>
             <button class="ra-call" title="Gọi: ${c.phone}" data-act="call" data-id="${c.id}">📞</button>

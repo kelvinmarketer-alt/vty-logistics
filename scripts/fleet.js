@@ -1268,13 +1268,13 @@
       const none = r.plate === '__none__';
       const plateLab = none ? '⚠️ Chưa xếp xe' : '🚚 ' + r.plate;
       return `<tr style="cursor:pointer" onclick="window.openVehicleOrders('${encodeURIComponent(r.plate)}')">
-        <td><b style="color:${none ? 'var(--warn)' : 'var(--navy)'}">${plateLab}</b>${r.external ? ' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>' : ''}</td>
-        <td>${r.nhaXe ? '<div style="font-weight:600;color:var(--navy)">🏢 ' + r.nhaXe + '</div>' : ''}${r.laiXe ? '<div style="font-size:12px;color:var(--muted)">👤 ' + r.laiXe + '</div>' : ''}${(!r.nhaXe && !r.laiXe) ? '<span style="color:var(--muted)">—</span>' : ''}</td>
-        <td class="num"><b>${r.count}</b></td>
-        <td class="num">${window.fmt(r.kg)}</td>
-        <td class="num"><b>${window.fmt(r.freight)}</b></td>
-        <td class="num" style="color:var(--ok)">${window.fmt(r.paid)}</td>
-        <td class="num" style="color:${r.due > 0 ? 'var(--danger)' : 'var(--muted)'};font-weight:${r.due > 0 ? 700 : 400}">${window.fmt(r.due)}</td>
+        <td class="cardize-head"><b style="color:${none ? 'var(--warn)' : 'var(--navy)'}">${plateLab}</b>${r.external ? ' <span class="alert-badge warn" style="font-size:9px">ĐT ngoài</span>' : ''}</td>
+        <td data-label="Nhà xe / Lái xe" style="text-align:right">${r.nhaXe ? '<div style="font-weight:600;color:var(--navy)">🏢 ' + r.nhaXe + '</div>' : ''}${r.laiXe ? '<div style="font-size:12px;color:var(--muted)">👤 ' + r.laiXe + '</div>' : ''}${(!r.nhaXe && !r.laiXe) ? '<span style="color:var(--muted)">—</span>' : ''}</td>
+        <td class="num" data-label="Số đơn"><b>${r.count}</b></td>
+        <td class="num" data-label="Sản lượng (kg)">${window.fmt(r.kg)}</td>
+        <td class="num" data-label="Tổng cước"><b>${window.fmt(r.freight)}</b></td>
+        <td class="num" data-label="Đã thu" style="color:var(--ok)">${window.fmt(r.paid)}</td>
+        <td class="num" data-label="Còn thu" style="color:${r.due > 0 ? 'var(--danger)' : 'var(--muted)'};font-weight:${r.due > 0 ? 700 : 400}">${window.fmt(r.due)}</td>
       </tr>`;
     }).join('') || `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">Chưa có đơn nào gán xe.</td></tr>`;
   }
@@ -1326,6 +1326,7 @@
   window.STORE.subscribe('partners', renderPartners);
   window.renderAppShell('fleet', 'Xe & Tài xế');
   window.bindTabs();
+  if (window.tabsToSelect) window.tabsToSelect(document.querySelector('.page-tabs'));
   renderVehicles();
   renderDrivers();
   renderPartners();

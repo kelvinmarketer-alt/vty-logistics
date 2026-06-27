@@ -568,9 +568,26 @@ tbody td.num{text-align:right; font-variant-numeric:tabular-nums; font-feature-s
   /* Ẩn tính năng chỉ hợp máy tính (xuất/nhập Excel, cột hiển thị, in hàng loạt) */
   .mobile-hide{display:none!important}
 
-  /* Thanh chip danh mục/trạng thái → dropdown gọn trên điện thoại */
-  .quick-chips.cvt{display:none}
+  /* Thanh chip danh mục/trạng thái + tab điều hướng → dropdown gọn trên điện thoại */
+  .quick-chips.cvt,.page-tabs.cvt,.rpt-tabs.cvt{display:none}
   .chip-select{display:block}
+
+  /* Bảng nhiều cột → THẺ DỌC (hết kéo ngang) cho các bảng gắn class .cardize */
+  .table-wrap:has(table.cardize){overflow:visible;max-height:none}
+  table.cardize{table-layout:auto}
+  table.cardize thead{display:none}
+  table.cardize tbody tr{display:block;background:#fff;border:1px solid var(--line);
+    border-radius:10px;margin:0 0 8px;padding:8px 12px}
+  table.cardize tbody td{display:flex;justify-content:space-between;align-items:center;gap:12px;
+    border:none;padding:5px 0;text-align:right;font-size:13px}
+  table.cardize tbody td[data-label]::before{content:attr(data-label);color:var(--muted);
+    font-weight:600;font-size:12px;text-align:left;white-space:nowrap}
+  table.cardize tbody td.cardize-head{justify-content:flex-start;text-align:left;
+    padding:0 0 6px;margin-bottom:4px;border-bottom:1px dashed var(--line)}
+  table.cardize tbody td.cardize-actions{justify-content:flex-end;padding-top:6px;margin-top:2px;border-top:1px dashed var(--line)}
+  table.cardize tbody td.cardize-hide{display:none}
+  /* Giữ ẩn các cột phụ trong thẻ (cardize td{display:flex} đè .hide-sm/.hide-md) */
+  table.cardize tbody td.hide-sm,table.cardize tbody td.hide-md{display:none}
 }
 
 @media (max-width:480px){

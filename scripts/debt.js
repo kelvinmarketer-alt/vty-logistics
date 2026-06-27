@@ -159,7 +159,7 @@
       const ovFg = c.overdue > 60 ? 'var(--danger)' : c.overdue > 30 ? 'var(--warn)' : 'var(--ok)';
       const rid = String(c._idkey || c.id).replace(/"/g, '&quot;');
       return `<tr data-id="${rid}" style="cursor:pointer" title="Bấm để xem danh sách đơn còn nợ">
-        <td>
+        <td class="cardize-head">
           <div class="cust-cell">
             <div class="cust-ava" style="background:${col}">${window.initials(c.name)}</div>
             <div class="cust-info">
@@ -168,13 +168,13 @@
             </div>
           </div>
         </td>
-        <td><span class="staff-pill">${c.staffOwner}</span></td>
-        <td class="num"><b>${window.fmt(c.debt)}</b></td>
-        <td class="num debt-cell ${ovCls}">${c.debtOverdue ? window.fmt(c.debtOverdue) : '—'}</td>
-        <td><span class="status-pill" style="background:${ovBg};color:${ovFg}">${ovLab}</span></td>
-        <td style="font-size:12px;color:var(--muted)">${c._orderCount || 1} đơn</td>
-        <td style="font-size:12px;color:var(--muted)">${c.lastContact || '—'}</td>
-        <td>
+        <td data-label="NV phụ trách"><span class="staff-pill">${c.staffOwner}</span></td>
+        <td class="num" data-label="Còn nợ"><b>${window.fmt(c.debt)}</b></td>
+        <td class="num debt-cell ${ovCls}" data-label="Quá hạn">${c.debtOverdue ? window.fmt(c.debtOverdue) : '—'}</td>
+        <td data-label="Số ngày"><span class="status-pill" style="background:${ovBg};color:${ovFg}">${ovLab}</span></td>
+        <td data-label="Đơn nợ" style="font-size:12px;color:var(--muted)">${c._orderCount || 1} đơn</td>
+        <td class="hide-md" style="font-size:12px;color:var(--muted)">${c.lastContact || '—'}</td>
+        <td class="cardize-actions">
           <div class="row-actions">
             <button class="ra-call" title="Gọi nhắc nợ" data-action="call" data-id="${rid}">📞</button>
             <button class="ra-zalo" title="Nhắc Zalo" data-action="zalo" data-id="${rid}">Z</button>
