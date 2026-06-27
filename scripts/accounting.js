@@ -77,14 +77,14 @@
     );
     document.getElementById('cashTbody').innerHTML = rows.map(e => `
       <tr style="cursor:pointer" data-no="${e.no}">
-        <td><b>${e.no}</b></td>
-        <td style="font-size:12px;color:var(--muted)">${e.date}</td>
-        <td><span class="status-pill ${e.type==='in'?'st-delivered':'st-cancelled'}">${e.type==='in'?'+ Thu':'- Chi'}</span></td>
-        <td>${e.party}</td>
-        <td style="font-size:12px">${e.desc}</td>
-        <td><span class="staff-pill">${e.account}</span></td>
-        <td class="num type-${e.type}"><b>${e.type==='in'?'+':'-'}${window.fmt(e.amount)}</b></td>
-        <td style="font-size:12px;color:var(--muted)">${e.staff}</td>
+        <td class="cardize-head"><b>${e.no}</b> <span style="font-weight:400;color:var(--muted);font-size:12px">· ${e.date}</span></td>
+        <td class="cardize-hide" style="font-size:12px;color:var(--muted)">${e.date}</td>
+        <td data-label="Loại"><span class="status-pill ${e.type==='in'?'st-delivered':'st-cancelled'}">${e.type==='in'?'+ Thu':'- Chi'}</span></td>
+        <td data-label="Đối tượng">${e.party}</td>
+        <td data-label="Diễn giải" style="font-size:12px">${e.desc}</td>
+        <td data-label="Tài khoản"><span class="staff-pill">${e.account}</span></td>
+        <td class="num type-${e.type}" data-label="Số tiền"><b>${e.type==='in'?'+':'-'}${window.fmt(e.amount)}</b></td>
+        <td class="hide-md" style="font-size:12px;color:var(--muted)">${e.staff}</td>
       </tr>
     `).join('') || `<tr><td colspan="8" style="padding:40px;text-align:center;color:var(--muted)">Không có phiếu nào.</td></tr>`;
 

@@ -46,8 +46,8 @@
       const perms = (s.permissions||[]).slice(0,2).map(p => `<span class="perm-pill">${p}</span>`).join('')
                   + ((s.permissions||[]).length > 2 ? `<span class="perm-pill">+${s.permissions.length-2}</span>` : '');
       return `<tr data-id="${s.id}">
-        <td><b>${s.code}</b></td>
-        <td>
+        <td class="cardize-hide"><b>${s.code}</b></td>
+        <td class="cardize-head">
           <div class="cust-cell">
             <div class="cust-ava" style="background:${col}">${s.avatar || window.initials(s.name)}</div>
             <div class="cust-info">
@@ -58,11 +58,11 @@
         </td>
         <td class="hide-sm"><span class="staff-pill">${s.dept}</span></td>
         <td class="hide-md" style="font-size:12px">${s.phone}</td>
-        <td style="font-size:11.5px">${perms}</td>
+        <td data-label="Phân quyền" style="font-size:11.5px">${perms}</td>
         <td class="hide-sm">${kpiNum ? `<div style="display:flex;align-items:center;gap:4px"><div class="kpi-bar ${kpiCls}"><div style="width:${kpiNum}%"></div></div><b style="font-size:11px;color:var(--${kpiCls==='warn'?'warn':'ok'})">${s.kpi}</b></div>` : '—'}</td>
         <td class="num hide-md">${s.salary ? window.fmt(s.salary) : '—'}</td>
-        <td><span class="status-pill ${s.status==='active'?'st-delivered':'st-cancelled'}">${s.status==='active'?'✓ Đi làm':'⏸ Nghỉ'}</span></td>
-        <td onclick="event.stopPropagation()">
+        <td data-label="Trạng thái"><span class="status-pill ${s.status==='active'?'st-delivered':'st-cancelled'}">${s.status==='active'?'✓ Đi làm':'⏸ Nghỉ'}</span></td>
+        <td class="cardize-actions" onclick="event.stopPropagation()">
           <div class="row-actions">
             <button class="ra-zalo" data-act="zalo" data-id="${s.id}">Z</button>
             <button class="ra-call" data-act="call" data-id="${s.id}">📞</button>

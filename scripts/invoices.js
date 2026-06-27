@@ -50,15 +50,15 @@
       const st = stMap[i.status];
       const total = i.net + i.vat;
       return `<tr data-no="${i.no}">
-        <td><b style="font-family:ui-monospace,monospace">${i.no}</b></td>
-        <td style="font-size:12px;color:var(--muted)">${i.date}</td>
-        <td>${i.cust}</td>
+        <td class="cardize-head"><b style="font-family:ui-monospace,monospace">${i.no}</b> <span style="font-weight:400;color:var(--muted);font-size:12px">· ${i.date}</span></td>
+        <td class="cardize-hide" style="font-size:12px;color:var(--muted)">${i.date}</td>
+        <td data-label="Khách hàng">${i.cust}</td>
         <td class="hide-md" style="font-family:ui-monospace,monospace;font-size:12px">${i.tax}</td>
-        <td class="num">${window.fmt(i.net)}</td>
-        <td class="num">${window.fmt(i.vat)}</td>
-        <td class="num"><b>${window.fmt(total)}</b></td>
-        <td><span class="status-pill" style="background:${st.bg};color:${st.fg}">${st.lab}</span></td>
-        <td onclick="event.stopPropagation()">
+        <td class="num" data-label="Tiền hàng">${window.fmt(i.net)}</td>
+        <td class="num" data-label="VAT 10%">${window.fmt(i.vat)}</td>
+        <td class="num" data-label="Tổng cộng"><b>${window.fmt(total)}</b></td>
+        <td data-label="Trạng thái"><span class="status-pill" style="background:${st.bg};color:${st.fg}">${st.lab}</span></td>
+        <td class="cardize-actions" onclick="event.stopPropagation()">
           <div class="row-actions">
             ${i.status==='draft'   ? `<button title="Phát hành lên CQT" data-act="issue" data-no="${i.no}" style="color:var(--ok)">🚀</button>` : ''}
             ${i.status==='pending' ? `<button title="Đánh dấu đã TT" data-act="paid" data-no="${i.no}" style="color:var(--ok)">✓</button>` : ''}
