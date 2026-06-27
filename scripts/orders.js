@@ -68,6 +68,7 @@
         `<button class="chip ${currentService===s.id?'active':''}" onclick="filterService('${s.id}')" style="${currentService===s.id?'background:'+s.color+';color:#fff;border-color:'+s.color:''}">${s.icon} ${s.label} <span class="cnt">${counts[s.id]||0}</span></button>`
       ).join('');
     document.getElementById('serviceChips').innerHTML = html;
+    if (window.chipsToSelect) window.chipsToSelect(document.getElementById('serviceChips'));
   }
 
   window.filterStatus = function(k) {

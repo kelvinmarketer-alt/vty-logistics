@@ -153,6 +153,7 @@
       const k = ch.dataset.quick, span = ch.querySelector('.cnt');
       if (span && k in chipCounts) span.textContent = chipCounts[k];
     });
+    if (window.chipsToSelect) window.chipsToSelect(document.querySelector('.quick-chips'));
   }
 
   function render() {

@@ -539,6 +539,10 @@ tbody td.num{text-align:right; font-variant-numeric:tabular-nums; font-feature-s
   .quick-chips .chip{flex-shrink:0;white-space:nowrap}
 }
 
+/* Dropdown thay chip (mặc định ẩn; ≤680px hiện thay cho chip bar) — đặt TRƯỚC media để media thắng */
+.chip-select{display:none;width:100%;padding:9px 12px;border:1px solid var(--line);
+  border-radius:8px;font-size:13px;font-weight:600;color:var(--navy);background:#fff;margin-bottom:12px}
+
 /* ===== ĐIỆN THOẠI: tóm gọn 1 màn hình, vẫn đọc rõ ===== */
 @media (max-width:680px){
   /* Tiêu đề nhỏ gọn, ẩn dòng mô tả phụ (đỡ tốn 2 dòng) */
@@ -560,6 +564,13 @@ tbody td.num{text-align:right; font-variant-numeric:tabular-nums; font-feature-s
   /* Lọc gọn lại */
   .filter-bar{padding:8px;gap:6px}
   .table-wrap{max-height:calc(100vh - 230px)}
+
+  /* Ẩn tính năng chỉ hợp máy tính (xuất/nhập Excel, cột hiển thị, in hàng loạt) */
+  .mobile-hide{display:none!important}
+
+  /* Thanh chip danh mục/trạng thái → dropdown gọn trên điện thoại */
+  .quick-chips.cvt{display:none}
+  .chip-select{display:block}
 }
 
 @media (max-width:480px){

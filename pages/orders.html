@@ -85,9 +85,9 @@
       </div>
       <div class="head-actions">
         <button class="btn btn-ghost" onclick="window.viewByVehicle()">🚚 Điều phối xe</button>
-        <button class="btn btn-ghost" onclick="window.exportOrders()">⬇ Xuất Excel</button>
-        <button class="btn btn-ghost" onclick="window.toast('In phiếu giao hàng','info')">🖨 In phiếu</button>
-        <button class="btn btn-ghost" onclick="window.openBulkImport('orders')">📥 Nhập hàng loạt</button>
+        <button class="btn btn-ghost mobile-hide" onclick="window.exportOrders()">⬇ Xuất Excel</button>
+        <button class="btn btn-ghost mobile-hide" onclick="window.toast('In phiếu giao hàng','info')">🖨 In phiếu</button>
+        <button class="btn btn-ghost mobile-hide" onclick="window.openBulkImport('orders')">📥 Nhập hàng loạt</button>
         <button class="btn btn-primary" onclick="window.openCreateOrder()">+ Tạo đơn mới</button>
       </div>
     </div>
@@ -142,7 +142,7 @@
           <button class="btn btn-ghost btn-sm" onclick="window.clearBulkSel()">✕ Bỏ chọn</button>
         </div>
         <div class="spacer"></div>
-        <button class="btn btn-ghost btn-sm">⚙ Cột hiển thị</button>
+        <button class="btn btn-ghost btn-sm mobile-hide">⚙ Cột hiển thị</button>
       </div>
       <div id="tbody" class="order-cards"></div>
       <div class="table-foot">

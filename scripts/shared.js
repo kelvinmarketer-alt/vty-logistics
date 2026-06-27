@@ -134,6 +134,37 @@ window.VTY_LOGO_INLINE_FULL = `
   </g>
 </svg>`;
 
+/* ===== Mobile: chuyển 1 thanh chip (.quick-chips > .chip) thành <select> dropdown =====
+   - Tự tạo/cập nhật 1 <select.chip-select> đặt ngay trước thanh chip.
+   - Chọn option => click đúng chip tương ứng (tái dùng logic lọc sẵn có).
+   - Nhãn option = text chip, bỏ phần số đếm (.cnt) để không bị lệch khi count đổi.
+   - Gọi lại sau mỗi lần chip re-render để đồng bộ. */
+window.chipsToSelect = function(chipsEl) {
+  if (!chipsEl) return;
+  chipsEl.classList.add('cvt');
+  let sel = chipsEl.previousElementSibling;
+  if (!sel || !sel.classList.contains('chip-select')) {
+    sel = document.createElement('select');
+    sel.className = 'chip-select';
+    chipsEl.parentNode.insertBefore(sel, chipsEl);
+    sel.addEventListener('change', () => {
+      const chip = chipsEl.querySelectorAll('.chip')[sel.selectedIndex];
+      if (chip) chip.click();
+    });
+  }
+  const chips = [...chipsEl.querySelectorAll('.chip')];
+  let activeIdx = 0;
+  sel.innerHTML = chips.map((c, i) => {
+    if (c.classList.contains('active')) activeIdx = i;
+    const clone = c.cloneNode(true);
+    clone.querySelectorAll('.cnt').forEach(x => x.remove());
+    const label = clone.textContent.trim().replace(/\s+/g, ' ');
+    const cnt = c.querySelector('.cnt');
+    return `<option value="${i}">${label}${cnt ? ' (' + cnt.textContent.trim() + ')' : ''}</option>`;
+  }).join('');
+  sel.selectedIndex = activeIdx;
+};
+
 /* Trả về HTML cho logo — ưu tiên user-uploaded → assets/logo.png → inline SVG */
 window.brandLogo = function(size = 'compact', basePath = '../') {
   /* 1. Logo user upload qua Settings (lưu base64 trong STORE) */
