@@ -539,10 +539,29 @@ tbody td.num{text-align:right; font-variant-numeric:tabular-nums; font-feature-s
   .quick-chips .chip{flex-shrink:0;white-space:nowrap}
 }
 
-@media (max-width:480px){
-  .pager button{min-width:28px;height:28px;font-size:11px;padding:0 6px}
+/* ===== ĐIỆN THOẠI: tóm gọn 1 màn hình, vẫn đọc rõ ===== */
+@media (max-width:680px){
+  /* Tiêu đề nhỏ gọn, ẩn dòng mô tả phụ (đỡ tốn 2 dòng) */
+  .page-head h1{font-size:17px}
+  .page-head .sub{display:none}
+  .page-head{margin-bottom:10px;gap:8px}
+
+  /* KPI: 1 HÀNG LƯỚT NGANG (vuốt xem hết) thay vì xếp nhiều hàng tốn dọc */
+  .kpis{display:flex;grid-template-columns:none;overflow-x:auto;gap:8px;
+        margin-bottom:12px;padding-bottom:6px;
+        scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+  .kpis::-webkit-scrollbar{height:0}
+  .kpi{flex:0 0 46%;min-width:150px;scroll-snap-align:start;padding:9px 11px}
+  .kpi-label{font-size:10px}
+  .kpi-value{font-size:17px;margin-top:2px}
+  .kpi-trend{font-size:10px;margin-top:2px}
+  .kpi-icon{width:22px;height:22px;font-size:12px;top:7px;right:7px}
+
+  /* Lọc gọn lại */
+  .filter-bar{padding:8px;gap:6px}
+  .table-wrap{max-height:calc(100vh - 230px)}
 }
 
-@media (max-width:360px){
-  .kpis{grid-template-columns:1fr}
+@media (max-width:480px){
+  .pager button{min-width:28px;height:28px;font-size:11px;padding:0 6px}
 }
