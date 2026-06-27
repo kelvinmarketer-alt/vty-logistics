@@ -37,6 +37,18 @@
     m3.content = 'VTY Logistics';
     document.head.appendChild(m3);
   }
+  /* Icon màn hình chính (iOS apple-touch-icon) + favicon + manifest — logo VTY thật */
+  [
+    ['apple-touch-icon', '/assets/apple-touch-icon.png', null],
+    ['icon', '/assets/favicon-64.png', { type: 'image/png' }],
+    ['manifest', '/manifest.json', null],
+  ].forEach(([rel, href, extra]) => {
+    if (document.querySelector(`link[rel="${rel}"]`)) return;
+    const l = document.createElement('link');
+    l.rel = rel; l.href = href;
+    if (extra) Object.assign(l, extra);
+    document.head.appendChild(l);
+  });
   /* Register service worker (chỉ trên HTTPS / localhost) */
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     window.addEventListener('load', () => {
