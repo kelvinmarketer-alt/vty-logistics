@@ -8,7 +8,11 @@
 <link rel="stylesheet" href="../styles/app.css">
 <style>
   .set-layout{display:grid;grid-template-columns:240px 1fr;gap:14px;margin-top:6px}
-  @media (max-width:780px){.set-layout{grid-template-columns:1fr}}
+  @media (max-width:780px){
+    .set-layout{grid-template-columns:1fr}
+    .set-nav{position:static;top:auto;display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .set-nav .item{flex:0 0 auto;white-space:nowrap}
+  }
 
   .set-nav{background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px;height:fit-content;position:sticky;top:80px}
   .set-nav .item{padding:9px 12px;font-size:13px;font-weight:600;color:var(--muted);border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:8px}

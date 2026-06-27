@@ -403,7 +403,7 @@ tbody td.num{text-align:right; font-variant-numeric:tabular-nums; font-feature-s
 
 .status-pill{
   display:inline-block; padding:2px 8px; border-radius:99px;
-  font-size:11px; font-weight:600;
+  font-size:11px; font-weight:600; white-space:nowrap;
 }
 .st-done{background:var(--ok-bg); color:var(--ok)}
 .st-running{background:var(--info-bg); color:var(--info)}
@@ -493,9 +493,10 @@ tbody td.num{text-align:right; font-variant-numeric:tabular-nums; font-feature-s
   .breadcrumb{display:none}  /* ẩn breadcrumb mobile để topbar gọn */
   .icon-btn{width:34px;height:34px}
 
-  /* Page head actions wrap */
-  .head-actions{flex-wrap:wrap;gap:6px}
-  .head-actions .btn{flex:1;justify-content:center;min-width:120px;font-size:12px;padding:8px 10px}
+  /* Page head xuống cột; actions full-width để nút wrap 2-3 cái/hàng (không mỗi nút 1 hàng) */
+  .page-head{flex-direction:column;align-items:stretch}
+  .head-actions{width:100%;flex-wrap:wrap;gap:6px}
+  .head-actions .btn{flex:1 1 auto;justify-content:center;min-width:0;font-size:12px;padding:8px 12px;white-space:nowrap}
 
   /* Filter bar wrap better */
   .filter-bar{padding:10px;gap:8px}
@@ -523,21 +524,25 @@ tbody td.num{text-align:right; font-variant-numeric:tabular-nums; font-feature-s
   .modal-foot .btn{flex:1}
   .form-row{grid-template-columns:1fr}
 
-  /* KPI nhỏ lại */
-  .kpis{gap:8px}
+  /* KPI: 2 cột gọn (thay vì 1 ô/hàng to đùng); minmax(0,1fr) để cột co được, không tràn ngang */
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   .kpi{padding:10px 12px}
+  .kpi-label{font-size:10px;letter-spacing:0.3px}
   .kpi-value{font-size:18px}
-  .kpi-icon{width:28px;height:28px;font-size:14px}
+  .kpi-trend{font-size:10px}
+  .kpi-icon{width:26px;height:26px;font-size:13px;top:8px;right:8px}
 }
 
 @media (max-width:720px){
   .hide-sm{display:none}
   .quick-chips{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch}
   .quick-chips .chip{flex-shrink:0;white-space:nowrap}
-  .head-actions .btn{flex:1 1 100%}
 }
 
 @media (max-width:480px){
-  .kpis{grid-template-columns:1fr}
   .pager button{min-width:28px;height:28px;font-size:11px;padding:0 6px}
+}
+
+@media (max-width:360px){
+  .kpis{grid-template-columns:1fr}
 }

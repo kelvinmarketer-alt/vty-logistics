@@ -154,7 +154,7 @@
     document.getElementById('debtTbody').innerHTML = rows.map(c => {
       const col = window.avatarColor(c.id);
       const ovCls = c.overdue > 60 ? 'danger' : c.overdue > 30 ? 'warn' : 'ok';
-      const ovLab = c.overdue === 0 ? '✓ Trong hạn' : c.overdue + ' ngày quá hạn';
+      const ovLab = c.overdue === 0 ? '✓ Trong hạn' : c.overdue + ' ngày';
       const ovBg = c.overdue > 60 ? 'var(--danger-bg)' : c.overdue > 30 ? 'var(--warn-bg)' : 'var(--ok-bg)';
       const ovFg = c.overdue > 60 ? 'var(--danger)' : c.overdue > 30 ? 'var(--warn)' : 'var(--ok)';
       const rid = String(c._idkey || c.id).replace(/"/g, '&quot;');
