@@ -13,6 +13,11 @@
 
   .chart-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
   .chart-card h3{margin:0 0 12px;font-size:13px;color:var(--navy);font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
+  /* Mobile: bảng analytics rộng → cuộn gọn trong card (không cắt cột) */
+  @media (max-width:680px){
+    .chart-card{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .chart-card .mini-table:not(.cardize){min-width:520px}
+  }
 
   .bar-chart{display:flex;align-items:flex-end;gap:6px;height:200px;padding-top:30px}
   .bar-chart .bar{flex:1;border-radius:5px 5px 0 0;position:relative;min-height:6px;cursor:pointer;transition:filter 0.15s}
@@ -218,13 +223,13 @@
 
       <div class="chart-card">
         <h3>📋 Doanh thu chi tiết theo NV (T5/2026)</h3>
-        <table class="mini-table">
+        <table class="mini-table cardize">
           <thead><tr><th>NV phụ trách</th><th class="num">Số đơn</th><th class="num">Doanh thu</th><th class="num">AOV</th><th>% Mục tiêu</th></tr></thead>
           <tbody>
-            <tr><td><b>Vương Luân</b> (chủ)</td><td class="num">38</td><td class="num">86.4 tr</td><td class="num">2.3 tr</td><td><b style="color:var(--ok)">115%</b> 🟢</td></tr>
-            <tr><td><b>Trần Lan</b> (TP Sales)</td><td class="num">62</td><td class="num">68.2 tr</td><td class="num">1.1 tr</td><td><b style="color:var(--ok)">92%</b> 🟢</td></tr>
-            <tr><td><b>Phạm Hùng</b></td><td class="num">28</td><td class="num">38.4 tr</td><td class="num">1.4 tr</td><td><b style="color:var(--warn)">88%</b> 🟡</td></tr>
-            <tr><td><b>Hoàng Mai</b> (CSKH B2C)</td><td class="num">98</td><td class="num">25.0 tr</td><td class="num">255k</td><td><b style="color:var(--ok)">95%</b> 🟢</td></tr>
+            <tr><td class="cardize-head"><b>Vương Luân</b> (chủ)</td><td class="num" data-label="Số đơn">38</td><td class="num" data-label="Doanh thu">86.4 tr</td><td class="num" data-label="AOV">2.3 tr</td><td data-label="% Mục tiêu"><b style="color:var(--ok)">115%</b> 🟢</td></tr>
+            <tr><td class="cardize-head"><b>Trần Lan</b> (TP Sales)</td><td class="num" data-label="Số đơn">62</td><td class="num" data-label="Doanh thu">68.2 tr</td><td class="num" data-label="AOV">1.1 tr</td><td data-label="% Mục tiêu"><b style="color:var(--ok)">92%</b> 🟢</td></tr>
+            <tr><td class="cardize-head"><b>Phạm Hùng</b></td><td class="num" data-label="Số đơn">28</td><td class="num" data-label="Doanh thu">38.4 tr</td><td class="num" data-label="AOV">1.4 tr</td><td data-label="% Mục tiêu"><b style="color:var(--warn)">88%</b> 🟡</td></tr>
+            <tr><td class="cardize-head"><b>Hoàng Mai</b> (CSKH B2C)</td><td class="num" data-label="Số đơn">98</td><td class="num" data-label="Doanh thu">25.0 tr</td><td class="num" data-label="AOV">255k</td><td data-label="% Mục tiêu"><b style="color:var(--ok)">95%</b> 🟢</td></tr>
           </tbody>
         </table>
       </div>
