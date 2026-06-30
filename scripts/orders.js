@@ -88,6 +88,10 @@
       + (currentStatus ? ` · ${STATUS[currentStatus].label}` : '')
       + (currentService ? ` · ${SVC[currentService].label}` : '');
     document.getElementById('footCount').textContent = rows.length;
+    /* Đếm đơn thiếu thông tin → hiện trên nút lọc */
+    const issueCount = window.orderIssues ? orders.filter(o => window.orderIssues(o).length).length : 0;
+    const bi = document.getElementById('btnOnlyIssues');
+    if (bi) { bi.textContent = `⚠️ Đơn thiếu TT${issueCount ? ' (' + issueCount + ')' : ''}`; bi.style.display = issueCount ? '' : 'none'; }
     renderPipeline();
     renderServiceChips();
 
@@ -112,10 +116,12 @@
           ? `<span style="font-size:12px;color:var(--muted)">Đã thu ${window.fmt(p.paid)} · Còn <b style="color:var(--danger)">${window.fmt(p.remaining)}</b></span>`
         : (p.due > 0 && p.paid === 0)
           ? `<span style="font-size:12px;color:var(--danger)">Còn ${window.fmt(p.remaining)}</span>` : '';
-      return `<div class="order-card" data-code="${o.code}">
+      const issues = window.orderIssues ? window.orderIssues(o) : [];
+      return `<div class="order-card${issues.length ? ' oc-warn' : ''}" data-code="${o.code}">
         <div class="oc-head">
           <input type="checkbox" class="row-chk" data-code="${o.code}" onclick="event.stopPropagation()" style="width:16px;height:16px;cursor:pointer">
           <b style="color:var(--navy);font-size:15px">${o.code}</b>
+          ${issues.length ? `<span class="issue-badge" title="Đơn cần cập nhật: ${issues.join('; ')}">⚠️ Thiếu thông tin</span>` : ''}
           <span class="svc-tag" style="background:${svc.color}20;color:${svc.color}">${svc.icon} ${svc.label}</span>
           ${tm ? `<span class="tm-tag">${tm.icon} ${tm.label}</span>` : ''}
           <span style="font-size:11.5px;color:var(--muted)">🕒 ${o.date}</span>
@@ -177,6 +183,7 @@
   function match(o) {
     if (currentStatus && o.status !== currentStatus) return false;
     if (currentService && o.serviceType !== currentService) return false;
+    if (window._onlyIssues && !(window.orderIssues && window.orderIssues(o).length)) return false;
     /* Tìm kiếm rộng + KHÔNG phân biệt dấu: mã, khách, người gửi/nhận+SĐT, đối tác (đội xe + lái xe), biển số */
     const nrm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     const q = nrm(document.getElementById('qSearch').value.trim());
@@ -199,6 +206,14 @@
     document.getElementById('qSearch').value = '';
     currentStatus = null;
     currentService = null;
+    window._onlyIssues = false;
+    const b = document.getElementById('btnOnlyIssues'); if (b) b.classList.remove('active');
+    render();
+  };
+  window.toggleOnlyIssues = function() {
+    window._onlyIssues = !window._onlyIssues;
+    const b = document.getElementById('btnOnlyIssues');
+    if (b) { b.classList.toggle('active', window._onlyIssues); b.style.background = window._onlyIssues ? '#FEE2E2' : ''; }
     render();
   };
   ['qSearch','fMode','fDriver','fStaff'].forEach(id => {
@@ -524,6 +539,16 @@
     document.getElementById('dMode').textContent = tm ? tm.label : '—';
 
     document.getElementById('iCode').textContent  = o.code;
+    /* Cảnh báo đỏ nếu đơn thiếu / sai thông tin */
+    const _iss = window.orderIssues ? window.orderIssues(o) : [];
+    const _issEl = document.getElementById('iIssues');
+    if (_issEl) _issEl.innerHTML = _iss.length
+      ? `<div style="background:#FEE2E2;border:1px solid #FCA5A5;color:#B91C1C;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:12.5px">
+           <b>⚠️ Đơn cần cập nhật — đang thiếu/sai:</b>
+           <ul style="margin:6px 0 2px 18px;padding:0">${_iss.map(i => '<li>' + i + '</li>').join('')}</ul>
+           <button class="btn btn-sm btn-primary" style="margin-top:6px" onclick="window.closeDrawer();window.openCreateOrder(window.STORE.get('orders',[]).find(x=>x.code==='${o.code}'))">✏️ Cập nhật ngay</button>
+         </div>`
+      : '';
     document.getElementById('iCust').innerHTML =
       window.custInputHTML('iCustInput', o.custName || '', 'Gõ tên / mã / SĐT khách…');
     const _iCustEl = document.getElementById('iCustInput');

@@ -855,6 +855,21 @@ window.orderRemainingDue = function (o) {
   if (!o || o.status === 'cancelled') return 0;
   return Math.max(0, (o.freight || 0) + (o.transferFee || 0) + (o.lastMileMode === 'delivery' ? (o.lastMileFee || 0) : 0) - (o.paidAmount || 0));
 };
+/* Đơn thiếu / sai thông tin → trả mảng vấn đề (rỗng = OK). Dùng để hiện cảnh báo đỏ. */
+window.orderIssues = function (o) {
+  if (!o || o.status === 'cancelled') return [];
+  const issues = [];
+  const m = String(o.date || '').match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if (!m) issues.push('Ngày sai định dạng');
+  else {
+    const d = +m[1], mo = +m[2], y = +m[3];
+    if (d < 1 || d > 31 || mo < 1 || mo > 12 || y < 2020 || y > 2027) issues.push('Ngày không hợp lệ (' + m[0] + ')');
+  }
+  if (!(window.validPhone && window.validPhone(o.senderPhone || o.custPhone))) issues.push('Thiếu SĐT khách');
+  if (!String(o.custName || '').trim()) issues.push('Thiếu tên khách');
+  if (!(o.freight > 0)) issues.push('Thiếu cước');
+  return issues;
+};
 /* Thống kê 1 KH TỪ ĐƠN THẬT (số đơn / doanh thu / công nợ) — mọi module gọi hàm này để KHỚP nhau */
 window.customerStats = function (c, orders) {
   orders = orders || window.STORE.get('orders', window.ORDERS || []);

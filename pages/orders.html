@@ -7,6 +7,10 @@
 <link rel="stylesheet" href="../styles/tokens.css">
 <link rel="stylesheet" href="../styles/app.css">
 <style>
+  /* Cảnh báo đơn thiếu / sai thông tin */
+  .order-card.oc-warn{border-left:4px solid var(--danger)}
+  .issue-badge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;
+    background:#FEE2E2;color:#B91C1C;border:1px solid #FCA5A5;white-space:nowrap;cursor:help}
   /* Status pipeline */
   .pipeline{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px}
   @media (max-width:980px){.pipeline{grid-template-columns:repeat(3,1fr)}}
@@ -126,6 +130,7 @@
         <option>Hoàng Mai</option>
         <option>Vương Luân</option>
       </select>
+      <button class="btn btn-ghost btn-sm" id="btnOnlyIssues" onclick="window.toggleOnlyIssues()" style="border-color:#FCA5A5;color:#B91C1C">⚠️ Đơn thiếu TT</button>
       <button class="btn btn-ghost btn-sm" onclick="clearOrderFilters()">↺ Xóa lọc</button>
     </div>
 
@@ -186,6 +191,7 @@
   <div class="tab-body">
 
     <div class="tab-pane active" data-pane="info">
+      <div id="iIssues"></div>
       <div class="section-h">Thông tin đơn</div>
       <div class="kv-grid">
         <div class="kv"><span class="k">Mã đơn</span><span class="v" id="iCode">—</span></div>
