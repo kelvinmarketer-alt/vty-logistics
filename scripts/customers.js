@@ -385,19 +385,25 @@
     document.getElementById('dbOver').textContent = window.fmtVND(c.debtOverdue);
     const dtb = document.querySelector('#debtTable tbody');
     if (c.debt > 0) {
-      dtb.innerHTML = `
-        <tr><td>01/04/2026</td><td>VAT-04A-128</td><td>Cước tháng 4</td>
-            <td class="num">${window.fmt(c.debt + 8_000_000)}</td>
-            <td class="num">—</td>
-            <td class="num">${window.fmt(c.debt + 8_000_000)}</td></tr>
-        <tr><td>15/04/2026</td><td>UNC-2604</td><td>Thanh toán đợt 1</td>
-            <td class="num">—</td>
-            <td class="num">${window.fmt(8_000_000)}</td>
-            <td class="num">${window.fmt(c.debt)}</td></tr>
-        <tr style="background:#FEFBF3"><td><b>Hiện tại</b></td><td>—</td><td>Số dư còn lại</td>
-            <td class="num">—</td><td class="num">—</td>
-            <td class="num" style="color:var(--warn);font-weight:700">${window.fmt(c.debt)}</td></tr>
-      `;
+      /* Đơn còn nợ THẬT của khách (khớp theo định danh đơn) — bỏ dữ liệu hóa đơn giả */
+      const allOrders = window.STORE.get('orders', window.ORDERS || []);
+      const idOf = window.buildOrderIdentity ? window.buildOrderIdentity(allOrders) : null;
+      const due = window.orderRemainingDue || (o => Math.max(0, (o.freight||0)+(o.transferFee||0)-(o.paidAmount||0)));
+      const vp = window.validPhone ? window.validPhone(c.phone) : '';
+      const myKey = vp ? 'p:'+vp : (c.name ? 'n:'+window._stripD(c.name) : '');
+      const myOrders = (idOf && myKey)
+        ? allOrders.filter(o => idOf(o) === myKey && o.status !== 'cancelled' && due(o) > 0)
+                   .sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+        : [];
+      const rows = myOrders.map(o => `
+        <tr><td>${o.date || '—'}</td><td><b>${o.code}</b></td><td>${(o.goods||'—').slice(0,28)}</td>
+            <td class="num">${window.fmt(o.freight||0)}</td>
+            <td class="num" style="color:var(--ok)">${window.fmt(o.paidAmount||0)}</td>
+            <td class="num" style="color:var(--danger);font-weight:600">${window.fmt(due(o))}</td></tr>`).join('');
+      dtb.innerHTML = rows
+        + `<tr style="background:#FEFBF3"><td colspan="5"><b>Tổng còn nợ</b></td>
+            <td class="num" style="color:var(--warn);font-weight:700">${window.fmt(c.debt)}</td></tr>`;
+      if (!myOrders.length) dtb.innerHTML = `<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">Còn nợ <b>${window.fmt(c.debt)}</b> — chi tiết theo đơn cần SĐT khớp.</td></tr>`;
     } else {
       dtb.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--ok)">✓ Không có công nợ.</td></tr>`;
     }

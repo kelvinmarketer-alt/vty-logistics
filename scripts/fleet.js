@@ -127,27 +127,27 @@
       const hasWaiting = (window.STORE.get('orders', window.ORDERS || []) || []).some(o => (o.status === 'confirmed' || o.status === 'pickup') && orderBelongsToPartner(p, o));
       const canRun = ld.count && !ld.running && hasWaiting;
       return `<tr data-id="${p.id}">
-        <td onclick="event.stopPropagation()"><input type="checkbox" class="prow-chk" data-id="${p.id}" style="width:15px;height:15px;cursor:pointer"></td>
-        <td><b>${p.code}</b></td>
-        <td>
+        <td class="cardize-hide" onclick="event.stopPropagation()"><input type="checkbox" class="prow-chk" data-id="${p.id}" style="width:15px;height:15px;cursor:pointer"></td>
+        <td class="cardize-hide"><b>${p.code}</b></td>
+        <td class="cardize-head">
           <div class="cust-cell">
             <div class="cust-ava" style="background:${col}">${window.initials(p.name)}</div>
             <div class="cust-info">
-              <div class="n1">${p.name}</div>
+              <div class="n1">${p.name} <span style="font-weight:400;color:var(--muted);font-size:12px">· ${p.code}</span></div>
               <div class="n2">${p.contact}</div>
             </div>
           </div>
         </td>
         <td class="hide-md"><span class="staff-pill">${kindLab}</span></td>
-        <td>
+        <td data-label="Xe / SĐT">
           <div style="font-family:ui-monospace,monospace;font-weight:700;color:var(--navy)">${p.vehiclePlate || '(chỉ tài xế)'}</div>
           <div style="font-size:11px;color:var(--muted)">${p.phone}</div>
         </td>
-        <td>${loadCell}</td>
+        <td data-label="Tải / tình trạng">${loadCell}</td>
         <td class="num hide-sm">${p.trips30d}</td>
         <td class="hide-sm"><span class="star">★ ${p.rating}</span></td>
-        <td><span class="status-pill ${stCls}">${stLab}</span></td>
-        <td onclick="event.stopPropagation()">
+        <td data-label="Trạng thái"><span class="status-pill ${stCls}">${stLab}</span></td>
+        <td class="cardize-actions" onclick="event.stopPropagation()">
           <div class="row-actions">
             ${hasWaiting ? `<button onclick="window.runPartnerVehicle('${p.id}')" title="Cho xe khởi chạy" style="color:var(--ok);font-weight:700">🚀</button>` : ''}
             <button class="ra-zalo" data-act="zalo" data-id="${p.id}" title="Nhắn Zalo">Z</button>
@@ -421,26 +421,26 @@
       const stCls = d.status === 'running' ? 'st-transit' : 'st-cancelled';
       const canDriveCount = (d.canDrive||[]).length;
       return `<tr data-id="${d.id}">
-        <td><b>${d.code}</b></td>
-        <td>
+        <td class="cardize-hide"><b>${d.code}</b></td>
+        <td class="cardize-head">
           <div class="cust-cell">
             <div class="cust-ava" style="background:${col}">${window.initials(d.name)}</div>
             <div class="cust-info">
-              <div class="n1">${d.name}</div>
+              <div class="n1">${d.name} <span style="font-weight:400;color:var(--muted);font-size:12px">· ${d.code}</span></div>
               <div class="n2">${d.phone}</div>
             </div>
           </div>
         </td>
         <td class="hide-md" style="font-size:12px">${d.license}</td>
-        <td>
+        <td data-label="Xe gắn">
           <div style="font-family:ui-monospace,monospace;font-weight:700;color:var(--navy)">${d.primaryPlate}</div>
           <div style="font-size:11px;color:var(--muted)">Lái được ${canDriveCount} xe</div>
         </td>
-        <td class="num"><b>${d.trips30d}</b></td>
-        <td class="num">${window.fmtShort(d.revenue30d)}</td>
+        <td class="num" data-label="Chuyến/30d"><b>${d.trips30d}</b></td>
+        <td class="num" data-label="Doanh thu/30d">${window.fmtShort(d.revenue30d)}</td>
         <td class="hide-sm"><span class="star">★ ${d.rating}</span></td>
-        <td><span class="status-pill ${stCls}">${stLab}</span></td>
-        <td onclick="event.stopPropagation()">
+        <td data-label="Trạng thái"><span class="status-pill ${stCls}">${stLab}</span></td>
+        <td class="cardize-actions" onclick="event.stopPropagation()">
           <div class="row-actions">
             <button class="ra-zalo" data-act="zalo" data-id="${d.id}" title="Nhắn Zalo">Z</button>
             <button class="ra-call" data-act="call" data-id="${d.id}" title="Gọi điện">📞</button>
