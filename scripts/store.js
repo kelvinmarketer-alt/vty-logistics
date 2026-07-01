@@ -48,9 +48,25 @@
     else if (key === 'orders') { if (res.code) item.code = res.code; }
     else { if (res.id) item.id = res.id; if (res.code) item.code = res.code; }
   }
-  function _markPending(key, item, op, idCol, identifier) {
-    (_pending[key] = _pending[key] || {})[_pkey(item)] = {
-      item, op: op || 'insert', idCol: idCol || 'id', identifier: identifier != null ? identifier : _pkey(item),
+  function _markPending(key, item, op, idCol, identifier, patch) {
+    const bucket = (_pending[key] = _pending[key] || {});
+    const pk = _pkey(item);
+    const prev = bucket[pk];
+    let finalOp = op || 'insert';
+    let finalPatch = null;
+    if (finalOp === 'update') {
+      if (prev && prev.op === 'insert') {
+        /* Item vẫn đang chờ INSERT (chưa lên server) → GIỮ op='insert';
+           bản đầy đủ (item) đã gộp sẵn thay đổi nên insert vẫn đúng & đủ, tránh mất bản ghi. */
+        finalOp = 'insert';
+      } else {
+        /* Gộp dồn patch qua nhiều lần sửa liên tiếp (chưa kịp sync) → không sót field nào. */
+        finalPatch = { ...(prev && prev.op === 'update' ? prev.patch : null), ...(patch || {}) };
+      }
+    }
+    bucket[pk] = {
+      item, op: finalOp, idCol: idCol || 'id',
+      identifier: identifier != null ? identifier : pk, patch: finalPatch,
     };
     _savePending();
   }
@@ -71,8 +87,13 @@
         if (e.op === 'insert' && _pkey(res) && _pkey(res) !== oldPk) { _adoptServerKey(key, e.item, res); _save(key); }
         _unmarkPending(key, oldPk);
       };
-      if (e.op === 'update') window.SB_DATA.update(table, e.identifier, e.item, e.idCol, e.item).then(ok).catch(() => {});
-      else window.SB_DATA.insert(table, e.item).then(ok).catch(() => {});
+      if (e.op === 'update') {
+        /* Gửi lại CHỈ field đã sửa (patch) → KHÔNG ghi đè field người khác vừa đổi; e.item làm doc fallback.
+           Item cũ (trước bản vá này) không có patch → fallback về e.item như trước. */
+        window.SB_DATA.update(table, e.identifier, e.patch || e.item, e.idCol, e.item).then(ok).catch(() => {});
+      } else {
+        window.SB_DATA.insert(table, e.item).then(ok).catch(() => {});
+      }
     });
   }
   /* Gộp server + item ĐANG TREO (chưa xác nhận lên cloud):
@@ -82,9 +103,16 @@
   function _mergePending(key, serverArr) {
     const p = _pending[key]; const pend = p ? Object.values(p) : [];
     if (!pend.length) return serverArr;
-    const pmap = {}; pend.forEach(e => { pmap[_pkey(e.item)] = e.item; });
+    const pByKey = {}; pend.forEach(e => { pByKey[_pkey(e.item)] = e; });
     const sKeys = new Set(serverArr.map(_pkey));
-    const merged = serverArr.map(s => pmap[_pkey(s)] || s);
+    const merged = serverArr.map(s => {
+      const e = pByKey[_pkey(s)];
+      if (!e) return s;
+      /* update treo: chỉ ĐÈ field ĐÃ SỬA lên bản server → GIỮ thay đổi của người khác ở field khác
+         (hết nhấp nháy khi 2 NV sửa 2 field khác cùng 1 bản ghi). Bản ghi cũ không có patch → dùng item đầy đủ như trước. */
+      if (e.op === 'update' && e.patch) return { ...s, ...e.patch };
+      return e.item;
+    });
     const extra = pend.filter(e => e.op === 'insert' && !sKeys.has(_pkey(e.item))).map(e => e.item);
     _retryPending(key);
     return [...extra, ...merged];
@@ -250,7 +278,7 @@
         if (isSupabaseMode() && TABLE_MAP[key]) {
           const idCol = ID_COLUMN[key] || (arr[i].id === identifier ? 'id' : arr[i].code === identifier ? 'code' : arr[i].no === identifier ? 'no' : 'id');
           /* GIỮ TREO bản sửa tới khi xác nhận lên cloud → refresh không bị bản server cũ ghi đè mất */
-          _markPending(key, arr[i], 'update', idCol, identifier);
+          _markPending(key, arr[i], 'update', idCol, identifier, patch);
           window.SB_DATA.update(TABLE_MAP[key], identifier, patch, idCol, arr[i])
             .then(res => { if (res) _unmarkPending(key, _pkey(arr[i])); })
             .catch(e => console.warn(`[STORE update ${key} → SB]`, e));
