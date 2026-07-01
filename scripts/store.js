@@ -41,6 +41,13 @@
   try { const r = localStorage.getItem(PEND_KEY); if (r) Object.assign(_pending, JSON.parse(r)); } catch (e) {}
   function _savePending() { try { localStorage.setItem(PEND_KEY, JSON.stringify(_pending)); } catch (e) {} }
   const _pkey = it => it && (it.id || it.code || it.no);
+  /* Nhận mã do server (trigger dedup) cấp mới vào item local — theo đúng cột PK từng bảng */
+  function _adoptServerKey(key, item, res) {
+    if (!item || !res) return;
+    if (ID_COLUMN[key] === 'no') { if (res.no) item.no = res.no; }
+    else if (key === 'orders') { if (res.code) item.code = res.code; }
+    else { if (res.id) item.id = res.id; if (res.code) item.code = res.code; }
+  }
   function _markPending(key, item, op, idCol, identifier) {
     (_pending[key] = _pending[key] || {})[_pkey(item)] = {
       item, op: op || 'insert', idCol: idCol || 'id', identifier: identifier != null ? identifier : _pkey(item),
@@ -58,7 +65,12 @@
          Item vẫn GIỮ TREO (không mất dữ liệu), chỉ giãn nhịp gửi lại. */
       if (e._lastTry && now - e._lastTry < 8000) return;
       e._lastTry = now;
-      const ok = res => { if (res) _unmarkPending(key, _pkey(e.item)); };
+      const oldPk = _pkey(e.item);
+      const ok = res => {
+        if (!res) return;
+        if (e.op === 'insert' && _pkey(res) && _pkey(res) !== oldPk) { _adoptServerKey(key, e.item, res); _save(key); }
+        _unmarkPending(key, oldPk);
+      };
       if (e.op === 'update') window.SB_DATA.update(table, e.identifier, e.item, e.idCol, e.item).then(ok).catch(() => {});
       else window.SB_DATA.insert(table, e.item).then(ok).catch(() => {});
     });
@@ -206,16 +218,16 @@
         _markPending(key, item);
         window.SB_DATA.insert(TABLE_MAP[key], item)
           .then(res => {
-            if (res) { _unmarkPending(key, _pkey(item)); }
-            else {
+            if (res) {
+              /* Trigger DB tự cấp MÃ MỚI khi trùng → nhận mã server trả về để UI khớp (chống trùng, không mất) */
+              const oldPk = _pkey(item), newPk = _pkey(res);
+              if (newPk && newPk !== oldPk) { _adoptServerKey(key, item, res); _unmarkPending(key, oldPk); _save(key); }
+              else _unmarkPending(key, _pkey(item));
+            } else {
+              /* null = lỗi KHÁC (không phải trùng khóa — trigger đã lo) → GIỮ TREO + tự thử lại, KHÔNG xóa (tránh mất dữ liệu) */
               const e = window.__sbLastError;
-              /* 23505 = trùng khóa → bản ghi ĐÃ tồn tại trên server → ngừng treo/thử lại (tránh spam vô hạn) */
-              if (e && (e.code === '23505' || /duplicate key|already exists/i.test(e.message || ''))) {
-                _unmarkPending(key, _pkey(item));
-              } else {
-                const detail = e ? ` — LỖI [${e.code || '?'}] ${e.message || e}` : '';
-                window.toast?.('⚠ CHƯA lưu server (' + key + ') — giữ local & tự thử lại' + detail, 'danger');
-              }
+              const detail = e ? ` — LỖI [${e.code || '?'}] ${e.message || e}` : '';
+              window.toast?.('⚠ CHƯA lưu server (' + key + ') — giữ local & tự thử lại' + detail, 'danger');
             }
           })
           .catch(e => {
