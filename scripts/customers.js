@@ -443,6 +443,7 @@
     const c = customers.find(x => x.id === id);
     if (!c) return;
     const newNote = {
+      _id: 'n' + Date.now() + Math.random().toString(36).slice(2, 6),  /* danh tính để trigger union giữ note của cả 2 NV khi thêm đồng thời */
       who: window.CURRENT_USER.name,
       when: new Date().toLocaleDateString('vi-VN'),
       text

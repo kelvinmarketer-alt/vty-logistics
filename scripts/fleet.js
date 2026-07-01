@@ -919,7 +919,7 @@
     const date = dateInput
       ? new Date(dateInput).toLocaleString('vi-VN')
       : new Date().toLocaleString('vi-VN');
-    const newLog = { date, amount, liters, odometer: odo, by: window.formVal('#fBy') || 'Admin' };
+    const newLog = { _id: 'f' + Date.now() + Math.random().toString(36).slice(2, 6), date, amount, liters, odometer: odo, by: window.formVal('#fBy') || 'Admin' };
     const fuelLogs = [newLog, ...(v.fuelLogs || [])];
     window.STORE.update('vehicles', vid, { fuelLogs, odometer: odo });
     window.closeModal();
