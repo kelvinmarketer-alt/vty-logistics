@@ -84,7 +84,7 @@
       const oldPk = _pkey(e.item);
       const ok = res => {
         if (!res) return;
-        if (e.op === 'insert' && _pkey(res) && _pkey(res) !== oldPk) { _adoptServerKey(key, e.item, res); _save(key); }
+        if (e.op === 'insert' && _pkey(res) && _pkey(res) !== oldPk) { _adoptServerKey(key, e.item, res); _save(key); _scheduleRefresh(key); }
         _unmarkPending(key, oldPk);
       };
       if (e.op === 'update') {
@@ -184,6 +184,18 @@
     }
   }
 
+  /* ---- GỘP RE-RENDER (debounce) = tối ưu self-echo AN TOÀN.
+     KHÔNG cố "đoán event nào của mình để bỏ": mọi cách đoán (theo mã, hay so nội dung) đều có thể
+     NUỐT NHẦM thay đổi của NV khác trên cùng bản ghi — đã được review đối kháng chứng minh.
+     Thay vào đó gộp MỌI event (kể cả echo của mình) trong 250ms thành 1 lần getAll: vừa rẻ,
+     vừa LUÔN lấy state mới nhất nên KHÔNG BAO GIỜ giấu thay đổi của người khác. */
+  const _refreshTimers = {};
+  const REFRESH_DEBOUNCE = 250;
+  function _scheduleRefresh(key) {
+    if (_refreshTimers[key]) return;   /* đã hẹn trong cửa sổ → gộp lại */
+    _refreshTimers[key] = setTimeout(() => { _refreshTimers[key] = null; _refreshFromSupabase(key); }, REFRESH_DEBOUNCE);
+  }
+
   /* Realtime: khi user khác đổi data trên Supabase → pull về local + re-render.
      Server là nguồn chân lý nên replace thẳng (kể cả khi về 0 do bị xóa). */
   function _refreshFromSupabase(key) {
@@ -205,7 +217,8 @@
     if (!table) return;
     _realtimeOn.add(key);
     try {
-      window.SB_DATA.subscribe(table, () => _refreshFromSupabase(key));
+      /* Mọi event realtime → lên lịch refresh (gộp trong 250ms). LUÔN refresh, không suppress. */
+      window.SB_DATA.subscribe(table, () => _scheduleRefresh(key));
       console.log(`[STORE] Realtime ON: ${key}`);
     } catch (e) { console.warn(`[STORE realtime sub ${key}]`, e.message); }
   }
@@ -249,7 +262,8 @@
             if (res) {
               /* Trigger DB tự cấp MÃ MỚI khi trùng → nhận mã server trả về để UI khớp (chống trùng, không mất) */
               const oldPk = _pkey(item), newPk = _pkey(res);
-              if (newPk && newPk !== oldPk) { _adoptServerKey(key, item, res); _unmarkPending(key, oldPk); _save(key); }
+              /* Sau khi nhận mã mới: refresh để hoà bản server (chống hiển thị trùng tạm thời trong lúc adopt) */
+              if (newPk && newPk !== oldPk) { _adoptServerKey(key, item, res); _unmarkPending(key, oldPk); _save(key); _scheduleRefresh(key); }
               else _unmarkPending(key, _pkey(item));
             } else {
               /* null = lỗi KHÁC (không phải trùng khóa — trigger đã lo) → GIỮ TREO + tự thử lại, KHÔNG xóa (tránh mất dữ liệu) */
