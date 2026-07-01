@@ -48,6 +48,22 @@
     else if (key === 'orders') { if (res.code) item.code = res.code; }
     else { if (res.id) item.id = res.id; if (res.code) item.code = res.code; }
   }
+  /* Lọc patch xuống CHỈ field ĐỔI THẬT so với bản local hiện tại (before).
+     Nhiều form gửi CẢ form (mọi field, kể cả field không đổi lấy từ snapshot cũ) → nếu gửi nguyên,
+     giá trị CŨ sẽ đè field mà NV khác vừa sửa. Gửi tối giản → merge_doc chỉ đè field thực đổi. */
+  function _minimalPatch(before, patch) {
+    if (!before) return { ...patch };
+    const out = {};
+    for (const k in patch) {
+      const a = patch[k], b = before[k];
+      if (a === b) continue;
+      if (a && b && typeof a === 'object' && typeof b === 'object') {
+        try { if (JSON.stringify(a) === JSON.stringify(b)) continue; } catch (e) {}
+      }
+      out[k] = a;
+    }
+    return out;
+  }
   function _markPending(key, item, op, idCol, identifier, patch) {
     const bucket = (_pending[key] = _pending[key] || {});
     const pk = _pkey(item);
@@ -285,15 +301,18 @@
       const arr = this.get(key, fallback);
       const i = arr.findIndex(x => x.id === identifier || x.code === identifier || x.no === identifier);
       if (i >= 0) {
-        arr[i] = { ...arr[i], ...patch };
+        const before = arr[i];
+        /* Chỉ gửi server field ĐỔI THẬT so với bản local → tránh field cũ (stale) đè NV khác vừa sửa */
+        const minimal = _minimalPatch(before, patch);
+        arr[i] = { ...before, ...patch };
         _save(key);
         /* Push to Supabase — chọn cột định danh KHỚP với identifier được truyền vào
            (vd đối tác: truyền id 'Pxxx' nhưng có cả code 'DT0xx' → phải dùng cột 'id') */
-        if (isSupabaseMode() && TABLE_MAP[key]) {
+        if (isSupabaseMode() && TABLE_MAP[key] && Object.keys(minimal).length) {
           const idCol = ID_COLUMN[key] || (arr[i].id === identifier ? 'id' : arr[i].code === identifier ? 'code' : arr[i].no === identifier ? 'no' : 'id');
           /* GIỮ TREO bản sửa tới khi xác nhận lên cloud → refresh không bị bản server cũ ghi đè mất */
-          _markPending(key, arr[i], 'update', idCol, identifier, patch);
-          window.SB_DATA.update(TABLE_MAP[key], identifier, patch, idCol, arr[i])
+          _markPending(key, arr[i], 'update', idCol, identifier, minimal);
+          window.SB_DATA.update(TABLE_MAP[key], identifier, minimal, idCol, arr[i])
             .then(res => { if (res) _unmarkPending(key, _pkey(arr[i])); })
             .catch(e => console.warn(`[STORE update ${key} → SB]`, e));
         }

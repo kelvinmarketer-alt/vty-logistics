@@ -202,7 +202,12 @@
        fullRecord (object đầy đủ sau merge) → ghi vào doc để không mất field. */
     async update(table, id, patch, idColumn = 'id', fullRecord) {
       let mapped = mapTo(table, patch);
-      if (fullRecord) { try { mapped.doc = JSON.parse(JSON.stringify(fullRecord)); } catch (e) {} }
+      /* doc = CHỈ field đã đổi (patch), KHÔNG phải cả bản ghi. Trigger DB merge_doc_on_update sẽ gộp
+         patch này vào doc cũ trên server (doc = doc_cũ || patch) → KHÔNG ghi đè field mà NV khác vừa
+         sửa (chống clobber last-writer-wins qua kênh doc). Cột (mapped) vẫn chỉ set field đã đổi như cũ.
+         fullRecord chỉ dùng làm dự phòng khi không có patch (giữ tương thích caller cũ). */
+      const docSrc = (patch && typeof patch === 'object') ? patch : fullRecord;
+      if (docSrc) { try { mapped.doc = JSON.parse(JSON.stringify(docSrc)); } catch (e) {} }
       for (let attempt = 0; attempt < 40; attempt++) {
         const { data, error } = await client.from(table).update(mapped).eq(idColumn, id).select().single();
         if (!error) { window.__sbLastError = null; return mapFrom(table, data); }
