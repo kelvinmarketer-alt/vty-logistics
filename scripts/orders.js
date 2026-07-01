@@ -73,11 +73,11 @@
 
   window.filterStatus = function(k) {
     currentStatus = currentStatus === k ? null : k;
-    renderPipeline(); render();
+    render();   /* render() đã tự gọi renderPipeline() + renderServiceChips() */
   };
   window.filterService = function(id) {
     currentService = id;
-    renderServiceChips(); render();
+    render();
   };
 
   function render() {

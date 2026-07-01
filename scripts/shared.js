@@ -870,18 +870,29 @@ window.orderIssues = function (o) {
   if (!(o.freight > 0)) issues.push('Thiếu cước');
   return issues;
 };
-/* Thống kê 1 KH TỪ ĐƠN THẬT (số đơn / doanh thu / công nợ) — mọi module gọi hàm này để KHỚP nhau */
-window.customerStats = function (c, orders) {
+/* Gom thống kê TẤT CẢ khách trong 1 LƯỢT duyệt orders → { idOf, byKey } (O(orders)).
+   Dùng khi render danh sách nhiều khách để tránh O(khách × đơn). Kết quả KHỚP customerStats. */
+window.buildCustomerStatsIndex = function (orders) {
   orders = orders || window.STORE.get('orders', window.ORDERS || []);
   const idOf = window.buildOrderIdentity(orders);
-  const ck = idOf({ custName: c && c.name, custPhone: c && c.phone });
+  const byKey = {};
+  orders.forEach(o => {
+    if (o.status === 'cancelled') return;
+    const k = idOf(o);
+    const m = byKey[k] || (byKey[k] = { orders: 0, revenue: 0, debt: 0 });
+    m.orders++;
+    if (o.status === 'delivered' || o.status === 'reconciled') m.revenue += (o.freight || 0);
+    m.debt += window.orderRemainingDue(o);
+  });
+  return { idOf, byKey };
+};
+/* Thống kê 1 KH TỪ ĐƠN THẬT (số đơn / doanh thu / công nợ) — mọi module gọi hàm này để KHỚP nhau.
+   Truyền index (từ buildCustomerStatsIndex) để tra O(1); không truyền thì tự dựng (1 khách). */
+window.customerStats = function (c, orders, index) {
+  const idx = index || window.buildCustomerStatsIndex(orders);
+  const ck = idx.idOf({ custName: c && c.name, custPhone: c && c.phone });
   if (ck === '__unknown__') return { orders: 0, revenue: 0, debt: 0 };
-  const mine = orders.filter(o => o.status !== 'cancelled' && idOf(o) === ck);
-  return {
-    orders: mine.length,
-    revenue: mine.filter(o => o.status === 'delivered' || o.status === 'reconciled').reduce((s, o) => s + (o.freight || 0), 0),
-    debt: mine.reduce((s, o) => s + window.orderRemainingDue(o), 0),
-  };
+  return idx.byKey[ck] || { orders: 0, revenue: 0, debt: 0 };
 };
 
 /* =========================================================

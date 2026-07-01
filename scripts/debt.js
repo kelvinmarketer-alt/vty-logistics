@@ -83,8 +83,8 @@
     return (c && c._overdue != null) ? c._overdue : window.overdueDays(c);
   }
 
-  function renderAgingKPIs() {
-    const debtors = loadDebtors().map(c => ({ ...c, overdue: overdueDays(c) }));
+  function renderAgingKPIs(debtorsIn) {
+    const debtors = (debtorsIn || loadDebtors()).map(c => ({ ...c, overdue: overdueDays(c) }));
     const sum = arr => arr.reduce((s, c) => s + (c.debt || 0), 0);
     const totalDebt = sum(debtors);
     const overdue30 = sum(debtors.filter(c => c.overdue > 30));
@@ -134,8 +134,8 @@
   }
 
   function render() {
-    renderAgingKPIs();
-    const debtors = loadDebtors();
+    const debtors = loadDebtors();          /* tính 1 LẦN, dùng lại cho aging + bảng */
+    renderAgingKPIs(debtors);
     const q = document.getElementById('qSearch').value.trim().toLowerCase();
     const b = document.getElementById('fBucket').value;
     const rows = debtors

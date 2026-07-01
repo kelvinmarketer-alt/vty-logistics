@@ -52,7 +52,12 @@
   function _retryPending(key) {
     const p = _pending[key]; if (!p || !window.SB_DATA) return;
     const table = TABLE_MAP[key]; if (!table) return;
+    const now = Date.now();
     Object.values(p).forEach(e => {
+      /* Throttle: mỗi item chỉ thử lại tối đa ~1 lần/8s → KHÔNG spam theo từng realtime event.
+         Item vẫn GIỮ TREO (không mất dữ liệu), chỉ giãn nhịp gửi lại. */
+      if (e._lastTry && now - e._lastTry < 8000) return;
+      e._lastTry = now;
       const ok = res => { if (res) _unmarkPending(key, _pkey(e.item)); };
       if (e.op === 'update') window.SB_DATA.update(table, e.identifier, e.item, e.idCol, e.item).then(ok).catch(() => {});
       else window.SB_DATA.insert(table, e.item).then(ok).catch(() => {});
@@ -108,7 +113,12 @@
 
   function _save(key) {
     try { localStorage.setItem(PREFIX + key, JSON.stringify(_data[key])); }
-    catch (e) { console.warn('[STORE _save]', e); }
+    catch (e) {
+      console.warn('[STORE _save]', e);
+      if (e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014)) {
+        window.toast?.('⚠ Bộ nhớ trình duyệt đầy — thay đổi CHƯA lưu cục bộ. Hãy kiểm tra mạng & tải lại trang.', 'danger');
+      }
+    }
     (_subs[key] || []).forEach(fn => {
       try { fn(_data[key]); } catch (e) { console.warn('[STORE subscriber]', e); }
     });
@@ -199,8 +209,13 @@
             if (res) { _unmarkPending(key, _pkey(item)); }
             else {
               const e = window.__sbLastError;
-              const detail = e ? ` — LỖI [${e.code || '?'}] ${e.message || e}` : '';
-              window.toast?.('⚠ CHƯA lưu server (' + key + ') — giữ local & tự thử lại' + detail, 'danger');
+              /* 23505 = trùng khóa → bản ghi ĐÃ tồn tại trên server → ngừng treo/thử lại (tránh spam vô hạn) */
+              if (e && (e.code === '23505' || /duplicate key|already exists/i.test(e.message || ''))) {
+                _unmarkPending(key, _pkey(item));
+              } else {
+                const detail = e ? ` — LỖI [${e.code || '?'}] ${e.message || e}` : '';
+                window.toast?.('⚠ CHƯA lưu server (' + key + ') — giữ local & tự thử lại' + detail, 'danger');
+              }
             }
           })
           .catch(e => {
@@ -256,6 +271,7 @@
       localStorage.removeItem(PREFIX + key);
       delete _data[key];
       _preloaded.delete(key);
+      if (_pending[key]) { delete _pending[key]; _savePending(); }  /* xóa hàng chờ → không hồi lại */
       (_subs[key] || []).forEach(fn => fn(null));
       window.toast?.('Đã reset ' + key + ' về dữ liệu mẫu', 'info');
     },
@@ -263,6 +279,7 @@
     resetAll() {
       Object.keys(localStorage).filter(k => k.startsWith(PREFIX)).forEach(k => localStorage.removeItem(k));
       Object.keys(_data).forEach(k => delete _data[k]);
+      Object.keys(_pending).forEach(k => delete _pending[k]);  /* xóa toàn bộ hàng chờ trong RAM */
       _preloaded.clear();
       window.toast?.('Đã reset toàn bộ về dữ liệu mẫu', 'success');
       setTimeout(() => location.reload(), 800);

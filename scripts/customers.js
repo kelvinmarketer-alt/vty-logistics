@@ -28,9 +28,9 @@
   };
 
   /* Decorate: số đơn / doanh thu / công nợ TÍNH TỪ ĐƠN THẬT (khớp với module Đơn hàng + Công nợ) */
-  function decorate(c, ordersCache) {
+  function decorate(c, ordersCache, statsIndex) {
     const sid = c.serviceId || SVC_MAP[c.service] || 'lien-tinh';
-    const st = window.customerStats ? window.customerStats(c, ordersCache) : { orders: c.orders || 0, revenue: c.revenue || 0, debt: c.debt || 0 };
+    const st = window.customerStats ? window.customerStats(c, ordersCache, statsIndex) : { orders: c.orders || 0, revenue: c.revenue || 0, debt: c.debt || 0 };
     return {
       ...c,
       group: c.group || c.groupName || 'Mới',
@@ -158,7 +158,9 @@
 
   function render() {
     const ordersCache = window.STORE.get('orders', window.ORDERS || []);
-    customers = window.STORE.get('customers', initialData).map(c => decorate(c, ordersCache));
+    /* Dựng index thống kê 1 LẦN (O(đơn)) rồi tra O(1) cho từng khách → không còn O(khách×đơn) */
+    const statsIndex = window.buildCustomerStatsIndex ? window.buildCustomerStatsIndex(ordersCache) : null;
+    customers = window.STORE.get('customers', initialData).map(c => decorate(c, ordersCache, statsIndex));
     renderKPIs(customers);
     const rows = customers.filter(c => quickMatch(c) && filterMatch(c) && searchMatch(c));
     rowCount.textContent = `Đang hiển thị ${rows.length} / ${customers.length} khách hàng`;
